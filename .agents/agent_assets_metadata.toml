@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "CFU027w8Z-4OlTun8u0Pl"
+uri = "file://wildmarket.zip"
+type = "unspecified"
+title = "WildMarket — архив для GitHub"
