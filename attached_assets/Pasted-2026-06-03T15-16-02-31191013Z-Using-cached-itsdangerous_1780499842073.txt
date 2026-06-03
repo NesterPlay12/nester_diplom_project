@@ -1,0 +1,50 @@
+2026-06-03T15:16:02.31191013Z   Using cached itsdangerous-2.2.0-py3-none-any.whl.metadata (1.9 kB)
+2026-06-03T15:16:02.358595213Z Collecting jinja2>=3.1.2 (from Flask>=3.0->-r requirements.txt (line 1))
+2026-06-03T15:16:02.359999327Z   Using cached jinja2-3.1.6-py3-none-any.whl.metadata (2.9 kB)
+2026-06-03T15:16:02.457914852Z Collecting markupsafe>=2.1.1 (from Flask>=3.0->-r requirements.txt (line 1))
+2026-06-03T15:16:02.459297735Z   Using cached markupsafe-3.0.3-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata (2.7 kB)
+2026-06-03T15:16:02.785543792Z Collecting sqlalchemy>=2.0.16 (from Flask-SQLAlchemy>=3.1->-r requirements.txt (line 2))
+2026-06-03T15:16:02.786939756Z   Using cached sqlalchemy-2.0.50-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata (9.5 kB)
+2026-06-03T15:16:02.957818415Z Collecting cffi>=2.0.0 (from cryptography>=41.0->-r requirements.txt (line 6))
+2026-06-03T15:16:02.959192068Z   Using cached cffi-2.0.0-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.whl.metadata (2.6 kB)
+2026-06-03T15:16:02.992680584Z Collecting packaging (from gunicorn>=21.2.0->-r requirements.txt (line 7))
+2026-06-03T15:16:02.993918724Z   Using cached packaging-26.2-py3-none-any.whl.metadata (3.5 kB)
+2026-06-03T15:16:03.025620396Z Collecting pycparser (from cffi>=2.0.0->cryptography>=41.0->-r requirements.txt (line 6))
+2026-06-03T15:16:03.026799594Z   Using cached pycparser-3.0-py3-none-any.whl.metadata (8.2 kB)
+2026-06-03T15:16:03.181366202Z Collecting greenlet>=1 (from sqlalchemy>=2.0.16->Flask-SQLAlchemy>=3.1->-r requirements.txt (line 2))
+2026-06-03T15:16:03.182698014Z   Using cached greenlet-3.5.1-cp314-cp314-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl.metadata (3.8 kB)
+2026-06-03T15:16:03.224846548Z Collecting typing-extensions>=4.6.0 (from sqlalchemy>=2.0.16->Flask-SQLAlchemy>=3.1->-r requirements.txt (line 2))
+2026-06-03T15:16:03.226004506Z   Using cached typing_extensions-4.15.0-py3-none-any.whl.metadata (3.3 kB)
+2026-06-03T15:16:03.231418496Z Using cached flask-3.1.3-py3-none-any.whl (103 kB)
+2026-06-03T15:16:03.232625285Z Using cached flask_sqlalchemy-3.1.1-py3-none-any.whl (25 kB)
+2026-06-03T15:16:03.23368198Z Using cached Flask_Login-0.6.3-py3-none-any.whl (17 kB)
+2026-06-03T15:16:03.234771907Z Using cached werkzeug-3.1.8-py3-none-any.whl (226 kB)
+2026-06-03T15:16:03.236033967Z Using cached psycopg2_binary-2.9.12-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (4.3 MB)
+2026-06-03T15:16:03.240648228Z Using cached cryptography-48.0.0-cp311-abi3-manylinux_2_34_x86_64.whl (4.7 MB)
+2026-06-03T15:16:03.245651488Z Using cached gunicorn-26.0.0-py3-none-any.whl (212 kB)
+2026-06-03T15:16:03.246867997Z Using cached blinker-1.9.0-py3-none-any.whl (8.5 kB)
+2026-06-03T15:16:03.247971834Z Using cached cffi-2.0.0-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (219 kB)
+2026-06-03T15:16:03.249192903Z Using cached click-8.4.1-py3-none-any.whl (116 kB)
+2026-06-03T15:16:03.250422273Z Using cached itsdangerous-2.2.0-py3-none-any.whl (16 kB)
+2026-06-03T15:16:03.251448797Z Using cached jinja2-3.1.6-py3-none-any.whl (134 kB)
+2026-06-03T15:16:03.252593525Z Using cached markupsafe-3.0.3-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (23 kB)
+2026-06-03T15:16:03.253644641Z Using cached sqlalchemy-2.0.50-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (3.3 MB)
+2026-06-03T15:16:03.257344719Z Using cached greenlet-3.5.1-cp314-cp314-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl (660 kB)
+2026-06-03T15:16:03.258893407Z Using cached typing_extensions-4.15.0-py3-none-any.whl (44 kB)
+2026-06-03T15:16:03.260080635Z Using cached packaging-26.2-py3-none-any.whl (100 kB)
+2026-06-03T15:16:03.261305155Z Using cached pycparser-3.0-py3-none-any.whl (48 kB)
+2026-06-03T15:16:03.311551163Z Installing collected packages: typing-extensions, pycparser, psycopg2-binary, packaging, markupsafe, itsdangerous, greenlet, click, blinker, Werkzeug, sqlalchemy, jinja2, gunicorn, cffi, Flask, cryptography, Flask-SQLAlchemy, Flask-Login
+2026-06-03T15:16:07.186500921Z 
+2026-06-03T15:16:07.190491767Z Successfully installed Flask-3.1.3 Flask-Login-0.6.3 Flask-SQLAlchemy-3.1.1 Werkzeug-3.1.8 blinker-1.9.0 cffi-2.0.0 click-8.4.1 cryptography-48.0.0 greenlet-3.5.1 gunicorn-26.0.0 itsdangerous-2.2.0 jinja2-3.1.6 markupsafe-3.0.3 packaging-26.2 psycopg2-binary-2.9.12 pycparser-3.0 sqlalchemy-2.0.50 typing-extensions-4.15.0
+2026-06-03T15:16:07.198147601Z 
+2026-06-03T15:16:07.198172462Z [notice] A new release of pip is available: 25.3 -> 26.1.2
+2026-06-03T15:16:07.198177742Z [notice] To update, run: pip install --upgrade pip
+2026-06-03T15:16:10.800020692Z ==> Uploading build...
+2026-06-03T15:16:15.521539622Z ==> Uploaded in 2.1s. Compression took 2.6s
+2026-06-03T15:16:15.877620307Z ==> Build successful 🎉
+2026-06-03T15:16:28.031035414Z ==> Deploying...
+2026-06-03T15:16:28.228252591Z ==> Setting WEB_CONCURRENCY=1 by default, based on available CPUs in the instance
+2026-06-03T15:16:44.829467789Z ==> Running 'cd flask-app && bash start.sh'
+2026-06-03T15:16:44.872695201Z bash: start.sh: No such file or directory
+2026-06-03T15:16:48.865431851Z ==> Exited with status 127
+2026-06-03T15:16:48.871453048Z ==> Common ways to troubleshoot your deploy: https://render.com/docs/troubleshooting-deploys
