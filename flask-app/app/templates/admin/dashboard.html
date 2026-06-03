@@ -36,7 +36,7 @@
             <div class="section-label">Контент</div>
             <a href="{{ url_for('admin.products', status='pending') }}" class="nav-link">
                 <i class="bi bi-clock-history"></i>На модерации
-                {% if stats.pending_products > 0 %}
+                {% if stats is defined and stats.pending_products > 0 %}
                 <span class="badge bg-danger ms-auto">{{ stats.pending_products }}</span>
                 {% endif %}
             </a>
