@@ -1,45 +1,89 @@
-# [Project name]
+# WildMarket — Аналог Wildberries
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+Полноценный маркетплейс (дипломная работа) — аналог Wildberries на Python/Flask/SQLite (с поддержкой MySQL).
 
-## Run & Operate
+## Запуск
 
-- `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
-- `pnpm run typecheck` — full typecheck across all packages
-- `pnpm run build` — typecheck + build all packages
-- `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
-- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `DATABASE_URL` — Postgres connection string
+- **Flask-приложение**: воркфлоу `WildMarket (Flask)` — порт 8000
+- `cd flask-app && python seed.py` — заполнить базу тестовыми данными (запустить один раз)
+- `cd flask-app && python run.py` — запустить вручную
 
-## Stack
+## Стек
 
-- pnpm workspaces, Node.js 24, TypeScript 5.9
-- API: Express 5
-- DB: PostgreSQL + Drizzle ORM
-- Validation: Zod (`zod/v4`), `drizzle-zod`
-- API codegen: Orval (from OpenAPI spec)
-- Build: esbuild (CJS bundle)
+- Python 3.11
+- Flask 3.x + Flask-SQLAlchemy + Flask-Login
+- SQLite (по умолчанию) / MySQL (через PyMySQL)
+- Bootstrap 5 (CDN)
+- Werkzeug (хэширование паролей)
 
-## Where things live
+## Где что лежит
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `flask-app/` — всё Python-приложение
+- `flask-app/app/models.py` — все модели БД (User, Product, Category, Order, Review, Favorite, CartItem)
+- `flask-app/app/routes/` — маршруты: main, auth, products, cart, account, seller, admin
+- `flask-app/app/templates/` — Jinja2 шаблоны
+- `flask-app/app/static/` — CSS и JS
+- `flask-app/seed.py` — заполнение БД тестовыми данными
+- `flask-app/wildberries.db` — SQLite база данных
 
-## Architecture decisions
+## База данных
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+**По умолчанию**: SQLite (`flask-app/wildberries.db`) — работает без настройки.
 
-## Product
+**Для MySQL**: задать переменную окружения `FLASK_DATABASE_URL`:
+```
+mysql+pymysql://user:password@localhost/wildberries?charset=utf8mb4
+```
+Или задать отдельно: `MYSQL_HOST`, `MYSQL_USER`, `MYSQL_PASSWORD`, `MYSQL_DB`.
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+## Тестовые аккаунты
 
-## User preferences
+| Роль | Email | Пароль |
+|------|-------|--------|
+| Администратор | admin@wildmarket.ru | admin123 |
+| Модератор | moder@wildmarket.ru | moder123 |
+| Продавец | seller1@wildmarket.ru | seller123 |
+| Покупатель | ivan@example.ru | user123 |
 
-_Populate as you build — explicit user instructions worth remembering across sessions._
+## Функционал
+
+**Покупатели:**
+- Регистрация, вход, профиль
+- Каталог товаров с фильтрами и поиском
+- Страницы товаров с отзывами
+- Корзина, оформление заказа
+- История заказов, отмена
+- Избранное
+
+**Продавцы** (`/seller`):
+- Добавление и редактирование товаров
+- Статистика продаж
+- Товары отправляются на модерацию
+
+**Администраторы/Модераторы** (`/admin`):
+- Dashboard со статистикой
+- Модерация товаров (одобрить / отклонить)
+- Управление пользователями (роли, блокировка)
+- Управление заказами (смена статусов)
+- Управление категориями (CRUD)
+- Управление отзывами
+
+## Архитектурные решения
+
+- Flask Blueprints — каждый раздел в отдельном модуле
+- Flask-SQLAlchemy ORM — поддержка SQLite и MySQL через одну конфигурацию
+- Flask-Login — сессии и защита маршрутов через декораторы
+- Jinja2 шаблоны — наследование от base.html, admin/dashboard.html
+- Bootstrap 5 из CDN — без сборщика, максимальная простота
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- Не использовать переменную `DATABASE_URL` (она занята Node.js API) — для Flask использовать `FLASK_DATABASE_URL`
+- Перед первым запуском выполнить `python seed.py` для заполнения БД
+- Admin-панель доступна только для ролей `admin` и `moderator`
+- Seller-панель доступна для ролей `seller` и `admin`
 
-## Pointers
+## User preferences
 
-- See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details
+- Стек: Python / Flask / MySQL (SQLite для разработки)
+- Язык интерфейса: русский

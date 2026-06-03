@@ -1,0 +1,23 @@
+{% extends 'base.html' %}
+{% block title %}Избранное{% endblock %}
+{% block content %}
+
+<h2 class="h4 fw-bold mb-4">Избранное</h2>
+
+{% if favorites %}
+<div class="row row-cols-2 row-cols-md-3 row-cols-lg-4 row-cols-xl-6 g-3">
+    {% for fav in favorites %}
+    {% set product = fav.product %}
+    <div class="col">{% include '_product_card.html' %}</div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="text-center py-5 text-muted">
+    <i class="bi bi-heart fs-1 mb-3 d-block" style="color:#ddd;"></i>
+    <h5>Список избранного пуст</h5>
+    <p>Добавляйте товары в избранное, чтобы не потерять их</p>
+    <a href="{{ url_for('main.index') }}" class="btn btn-wb mt-2">На главную</a>
+</div>
+{% endif %}
+
+{% endblock %}

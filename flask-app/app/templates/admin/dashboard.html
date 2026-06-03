@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Панель администратора — WildMarket</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+    <style>
+        body { background: #f0f0f5; }
+        .admin-layout { display: flex; min-height: 100vh; }
+        .sidebar { background: #1a1a2e; width: 240px; min-height: 100vh; flex-shrink: 0; position: fixed; top: 0; left: 0; overflow-y: auto; z-index: 100; }
+        .sidebar .brand { padding: 20px; font-size: 1.1rem; font-weight: 800; color: #fff; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .sidebar .brand span { background: var(--wb-purple); color: #fff; border-radius: 4px; padding: 2px 6px; margin-right: 4px; }
+        .sidebar .nav-link { color: rgba(255,255,255,0.65); padding: 10px 20px; font-size: 0.88rem; border-left: 3px solid transparent; }
+        .sidebar .nav-link:hover, .sidebar .nav-link.active { color: #fff; background: rgba(203,17,171,0.25); border-left-color: var(--wb-purple); }
+        .sidebar .nav-link i { width: 20px; margin-right: 8px; }
+        .sidebar .section-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1px; color: rgba(255,255,255,0.3); padding: 12px 20px 4px; }
+        .main-content { margin-left: 240px; flex-grow: 1; padding: 24px; }
+        .topbar { background: #fff; border-radius: 12px; padding: 12px 20px; margin-bottom: 24px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+    </style>
+</head>
+<body>
+
+<div class="admin-layout">
+    <div class="sidebar">
+        <div class="brand">
+            <span>W</span>Admin
+        </div>
+        <nav class="nav flex-column mt-2">
+            <div class="section-label">Основное</div>
+            <a href="{{ url_for('admin.dashboard') }}" class="nav-link {% if request.endpoint=='admin.dashboard' %}active{% endif %}">
+                <i class="bi bi-speedometer2"></i>Dashboard
+            </a>
+            <div class="section-label">Контент</div>
+            <a href="{{ url_for('admin.products', status='pending') }}" class="nav-link">
+                <i class="bi bi-clock-history"></i>На модерации
+                {% if stats.pending_products > 0 %}
+                <span class="badge bg-danger ms-auto">{{ stats.pending_products }}</span>
+                {% endif %}
+            </a>
+            <a href="{{ url_for('admin.products') }}" class="nav-link {% if request.endpoint=='admin.products' %}active{% endif %}">
+                <i class="bi bi-box-seam"></i>Товары
+            </a>
+            <a href="{{ url_for('admin.categories') }}" class="nav-link {% if request.endpoint=='admin.categories' %}active{% endif %}">
+                <i class="bi bi-grid"></i>Категории
+            </a>
+            <a href="{{ url_for('admin.reviews') }}" class="nav-link {% if request.endpoint=='admin.reviews' %}active{% endif %}">
+                <i class="bi bi-star"></i>Отзывы
+            </a>
+            <div class="section-label">Пользователи</div>
+            <a href="{{ url_for('admin.users') }}" class="nav-link {% if request.endpoint=='admin.users' %}active{% endif %}">
+                <i class="bi bi-people"></i>Пользователи
+            </a>
+            <div class="section-label">Заказы</div>
+            <a href="{{ url_for('admin.orders') }}" class="nav-link {% if request.endpoint=='admin.orders' %}active{% endif %}">
+                <i class="bi bi-bag"></i>Все заказы
+            </a>
+            <div class="section-label">Сайт</div>
+            <a href="{{ url_for('main.index') }}" class="nav-link">
+                <i class="bi bi-house"></i>На сайт
+            </a>
+            <a href="{{ url_for('auth.logout') }}" class="nav-link text-danger">
+                <i class="bi bi-box-arrow-right"></i>Выйти
+            </a>
+        </nav>
+    </div>
+
+    <div class="main-content">
+        <div class="topbar">
+            <div>
+                <h5 class="mb-0 fw-bold">{% block page_title %}Dashboard{% endblock %}</h5>
+                <small class="text-muted">WildMarket Admin Panel</small>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                <span class="text-muted small">{{ current_user.username }}</span>
+                <div class="rounded-circle d-flex align-items-center justify-content-center text-white fw-bold"
+                     style="width:36px;height:36px;background:var(--wb-purple);">
+                    {{ current_user.username[0].upper() }}
+                </div>
+            </div>
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for cat, msg in messages %}
+                <div class="alert alert-{{ cat }} alert-dismissible fade show mb-3" role="alert">
+                    {{ msg }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        {% block admin_content %}
+        <div class="row g-3 mb-4">
+            <div class="col-sm-6 col-xl-3">
+                <div class="stat-card">
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+                        <span class="text-muted small">Пользователи</span>
+                        <div class="stat-icon" style="background:#ede7f6;color:#7b1fa2;">👥</div>
+                    </div>
+                    <div class="stat-value">{{ stats.users }}</div>
+                    <a href="{{ url_for('admin.users') }}" class="small text-wb">Управлять →</a>
+                </div>
+            </div>
+            <div class="col-sm-6 col-xl-3">
+                <div class="stat-card">
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+                        <span class="text-muted small">Товары</span>
+                        <div class="stat-icon" style="background:#e3f2fd;color:#1565c0;">📦</div>
+                    </div>
+                    <div class="stat-value">{{ stats.products }}</div>
+                    <a href="{{ url_for('admin.products') }}" class="small text-wb">Управлять →</a>
+                </div>
+            </div>
+            <div class="col-sm-6 col-xl-3">
+                <div class="stat-card">
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+                        <span class="text-muted small">Заказы</span>
+                        <div class="stat-icon" style="background:#e8f5e9;color:#2e7d32;">🛒</div>
+                    </div>
+                    <div class="stat-value">{{ stats.orders }}</div>
+                    <a href="{{ url_for('admin.orders') }}" class="small text-wb">Управлять →</a>
+                </div>
+            </div>
+            <div class="col-sm-6 col-xl-3">
+                <div class="stat-card">
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+                        <span class="text-muted small">Выручка</span>
+                        <div class="stat-icon" style="background:#fff3e0;color:#e65100;">💰</div>
+                    </div>
+                    <div class="stat-value" style="font-size:1.3rem;">{{ "{:,.0f}".format(stats.revenue) }} ₽</div>
+                </div>
+            </div>
+        </div>
+
+        {% if stats.pending_products > 0 %}
+        <div class="alert alert-warning d-flex align-items-center gap-3 mb-4">
+            <i class="bi bi-exclamation-triangle-fill fs-4"></i>
+            <div>
+                <strong>{{ stats.pending_products }} товаров</strong> ожидают модерации
+                <a href="{{ url_for('admin.products', status='pending') }}" class="ms-2 btn btn-warning btn-sm">
+                    Проверить
+                </a>
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="row g-4">
+            <div class="col-lg-8">
+                <div class="bg-white rounded-3 shadow-sm">
+                    <div class="p-3 border-bottom fw-bold">Последние заказы</div>
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>#</th>
+                                    <th>Покупатель</th>
+                                    <th>Сумма</th>
+                                    <th>Статус</th>
+                                    <th>Дата</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for order in recent_orders %}
+                                <tr>
+                                    <td class="fw-bold">{{ order.id }}</td>
+                                    <td>{{ order.user.username }}</td>
+                                    <td>{{ "{:,.0f}".format(order.total) }} ₽</td>
+                                    <td><span class="badge bg-{{ order.status_color }}">{{ order.status_label }}</span></td>
+                                    <td class="text-muted small">{{ order.created_at.strftime('%d.%m.%Y %H:%M') }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-4">
+                <div class="bg-white rounded-3 shadow-sm">
+                    <div class="p-3 border-bottom fw-bold">Новые пользователи</div>
+                    <div class="p-3">
+                        {% for user in recent_users %}
+                        <div class="d-flex align-items-center gap-2 mb-3">
+                            <div class="rounded-circle d-flex align-items-center justify-content-center text-white fw-bold"
+                                 style="width:36px;height:36px;min-width:36px;background:var(--wb-purple);font-size:0.9rem;">
+                                {{ user.username[0].upper() }}
+                            </div>
+                            <div>
+                                <div class="fw-semibold small">{{ user.username }}</div>
+                                <div class="text-muted" style="font-size:0.75rem;">{{ user.created_at.strftime('%d.%m.%Y') }}</div>
+                            </div>
+                            <span class="badge ms-auto" style="background:var(--wb-purple);font-size:0.7rem;">{{ user.role }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endblock %}
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

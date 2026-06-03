@@ -1,0 +1,81 @@
+{% extends 'admin/dashboard.html' %}
+{% block page_title %}Категории{% endblock %}
+{% block admin_content %}
+
+<div class="row g-4">
+    <div class="col-md-4">
+        <div class="bg-white rounded-3 p-4 shadow-sm">
+            <h5 class="fw-bold mb-3">Добавить категорию</h5>
+            <form method="post" action="{{ url_for('admin.add_category') }}">
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Название <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" name="name" required placeholder="Название категории">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Slug (URL) <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" name="slug" required
+                           placeholder="nazvanie-kategorii" pattern="[a-z0-9\-]+">
+                    <div class="form-text">Только латиница, цифры и дефис</div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Иконка (emoji)</label>
+                    <input type="text" class="form-control" name="icon" value="📦" placeholder="📦">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Родительская категория</label>
+                    <select class="form-select" name="parent_id">
+                        <option value="">Корневая категория</option>
+                        {% for cat in categories if not cat.parent_id %}
+                        <option value="{{ cat.id }}">{{ cat.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-wb w-100">Добавить</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="col-md-8">
+        <div class="bg-white rounded-3 shadow-sm">
+            <div class="p-3 border-bottom fw-bold">Все категории ({{ categories|length }})</div>
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Иконка</th>
+                            <th>Название</th>
+                            <th>Slug</th>
+                            <th>Родитель</th>
+                            <th>Товаров</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for cat in categories %}
+                        <tr>
+                            <td class="fs-5">{{ cat.icon }}</td>
+                            <td class="fw-semibold {% if cat.parent_id %}ps-4 text-muted{% endif %}">
+                                {{ cat.name }}
+                            </td>
+                            <td><code class="small">{{ cat.slug }}</code></td>
+                            <td class="small text-muted">{{ cat.parent.name if cat.parent else '—' }}</td>
+                            <td>{{ cat.products|length }}</td>
+                            <td>
+                                <form action="{{ url_for('admin.delete_category', cat_id=cat.id) }}" method="post"
+                                      onsubmit="return confirm('Удалить категорию {{ cat.name }}?')">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger"
+                                            {% if cat.children or cat.products %}disabled title="Нельзя удалить"{% endif %}>
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

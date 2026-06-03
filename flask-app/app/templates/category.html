@@ -1,0 +1,83 @@
+{% extends 'base.html' %}
+{% block title %}{{ category.name }}{% endblock %}
+{% block content %}
+
+<nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{{ url_for('main.index') }}">Главная</a></li>
+        {% if category.parent %}
+        <li class="breadcrumb-item"><a href="{{ url_for('main.category', slug=category.parent.slug) }}">{{ category.parent.name }}</a></li>
+        {% endif %}
+        <li class="breadcrumb-item active">{{ category.name }}</li>
+    </ol>
+</nav>
+
+<div class="row g-3">
+    <div class="col-lg-2 col-md-3">
+        <div class="filter-sidebar sticky-top" style="top:70px;">
+            <h6 class="fw-bold mb-3">Фильтры</h6>
+            <form method="get">
+                <div class="mb-3">
+                    <label class="form-label small fw-semibold">Цена</label>
+                    <div class="d-flex gap-2">
+                        <input type="number" class="form-control form-control-sm" name="min_price"
+                               placeholder="от" value="{{ min_price or '' }}">
+                        <input type="number" class="form-control form-control-sm" name="max_price"
+                               placeholder="до" value="{{ max_price or '' }}">
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small fw-semibold">Сортировка</label>
+                    <select class="form-select form-select-sm" name="sort">
+                        <option value="popular" {% if sort=='popular' %}selected{% endif %}>По популярности</option>
+                        <option value="new" {% if sort=='new' %}selected{% endif %}>Новинки</option>
+                        <option value="price_asc" {% if sort=='price_asc' %}selected{% endif %}>Дешевле</option>
+                        <option value="price_desc" {% if sort=='price_desc' %}selected{% endif %}>Дороже</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-wb btn-sm w-100">Применить</button>
+                <a href="{{ url_for('main.category', slug=category.slug) }}" class="btn btn-outline-secondary btn-sm w-100 mt-2">Сбросить</a>
+            </form>
+        </div>
+    </div>
+    <div class="col-lg-10 col-md-9">
+        <div class="d-flex align-items-center justify-content-between mb-3">
+            <h1 class="h4 mb-0">{{ category.icon }} {{ category.name }}
+                <span class="text-muted fs-6 fw-normal">({{ pagination.total }})</span>
+            </h1>
+        </div>
+        {% if products %}
+        <div class="row row-cols-2 row-cols-md-3 row-cols-lg-4 g-3">
+            {% for product in products %}
+            <div class="col">{% include '_product_card.html' %}</div>
+            {% endfor %}
+        </div>
+        <nav class="mt-4">
+            <ul class="pagination justify-content-center">
+                {% if pagination.has_prev %}
+                <li class="page-item"><a class="page-link" href="?page={{ pagination.prev_num }}&sort={{ sort }}">‹</a></li>
+                {% endif %}
+                {% for p in pagination.iter_pages() %}
+                    {% if p %}
+                    <li class="page-item {% if p==pagination.page %}active{% endif %}">
+                        <a class="page-link" href="?page={{ p }}&sort={{ sort }}">{{ p }}</a>
+                    </li>
+                    {% else %}
+                    <li class="page-item disabled"><span class="page-link">…</span></li>
+                    {% endif %}
+                {% endfor %}
+                {% if pagination.has_next %}
+                <li class="page-item"><a class="page-link" href="?page={{ pagination.next_num }}&sort={{ sort }}">›</a></li>
+                {% endif %}
+            </ul>
+        </nav>
+        {% else %}
+        <div class="text-center py-5 text-muted">
+            <i class="bi bi-box-seam fs-1 mb-3 d-block"></i>
+            <h5>Товары не найдены</h5>
+            <p>Попробуйте изменить фильтры</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

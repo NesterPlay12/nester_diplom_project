@@ -1,0 +1,70 @@
+{% extends 'base.html' %}
+{% block title %}Заказ #{{ order.id }}{% endblock %}
+{% block content %}
+
+<div class="d-flex align-items-center gap-3 mb-4">
+    <a href="{{ url_for('account.orders') }}" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-arrow-left"></i>
+    </a>
+    <h2 class="h4 fw-bold mb-0">Заказ #{{ order.id }}</h2>
+    <span class="badge bg-{{ order.status_color }} fs-6">{{ order.status_label }}</span>
+</div>
+
+<div class="row g-4">
+    <div class="col-md-8">
+        <div class="bg-white rounded-3 p-4 shadow-sm mb-4">
+            <h5 class="fw-bold mb-3">Товары</h5>
+            {% for item in order.items %}
+            <div class="d-flex gap-3 align-items-center py-3 {% if not loop.last %}border-bottom{% endif %}">
+                <img src="{{ item.product_image or 'https://via.placeholder.com/64' }}"
+                     style="width:64px;height:64px;object-fit:cover;border-radius:8px;">
+                <div class="flex-grow-1">
+                    <div class="fw-semibold">{{ item.product_name }}</div>
+                    <div class="text-muted small">{{ "{:,.0f}".format(item.price) }} ₽ × {{ item.quantity }} шт.</div>
+                </div>
+                <div class="fw-bold">{{ "{:,.0f}".format(item.subtotal) }} ₽</div>
+            </div>
+            {% endfor %}
+            <div class="d-flex justify-content-end fw-bold fs-5 mt-3 pt-2 border-top">
+                <span class="text-wb">Итого: {{ "{:,.0f}".format(order.total) }} ₽</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="bg-white rounded-3 p-4 shadow-sm mb-3">
+            <h6 class="fw-bold mb-3">Информация о заказе</h6>
+            <div class="mb-2">
+                <small class="text-muted d-block">Дата заказа</small>
+                <span>{{ order.created_at.strftime('%d.%m.%Y %H:%M') }}</span>
+            </div>
+            <div class="mb-2">
+                <small class="text-muted d-block">Адрес доставки</small>
+                <span>{{ order.address }}</span>
+            </div>
+            {% if order.phone %}
+            <div class="mb-2">
+                <small class="text-muted d-block">Телефон</small>
+                <span>{{ order.phone }}</span>
+            </div>
+            {% endif %}
+            {% if order.comment %}
+            <div class="mb-2">
+                <small class="text-muted d-block">Комментарий</small>
+                <span>{{ order.comment }}</span>
+            </div>
+            {% endif %}
+        </div>
+
+        {% if order.status in ('pending', 'confirmed') %}
+        <form action="{{ url_for('account.cancel_order', order_id=order.id) }}" method="post">
+            <button type="submit" class="btn btn-outline-danger w-100"
+                    onclick="return confirm('Отменить заказ #{{ order.id }}?')">
+                <i class="bi bi-x-circle me-1"></i>Отменить заказ
+            </button>
+        </form>
+        {% endif %}
+    </div>
+</div>
+
+{% endblock %}

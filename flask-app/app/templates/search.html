@@ -1,0 +1,81 @@
+{% extends 'base.html' %}
+{% block title %}Поиск{% endblock %}
+{% block content %}
+
+<div class="row g-3">
+    <div class="col-lg-2 col-md-3">
+        <div class="filter-sidebar sticky-top" style="top:70px;">
+            <h6 class="fw-bold mb-3">Фильтры</h6>
+            <form method="get">
+                <input type="hidden" name="q" value="{{ q }}">
+                <div class="mb-3">
+                    <label class="form-label small fw-semibold">Категория</label>
+                    <select class="form-select form-select-sm" name="category">
+                        <option value="">Все категории</option>
+                        {% for cat in categories %}
+                        <option value="{{ cat.id }}" {% if cat.id==cat_id %}selected{% endif %}>{{ cat.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small fw-semibold">Цена</label>
+                    <div class="d-flex gap-2">
+                        <input type="number" class="form-control form-control-sm" name="min_price"
+                               placeholder="от" value="{{ min_price or '' }}">
+                        <input type="number" class="form-control form-control-sm" name="max_price"
+                               placeholder="до" value="{{ max_price or '' }}">
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small fw-semibold">Сортировка</label>
+                    <select class="form-select form-select-sm" name="sort">
+                        <option value="popular" {% if sort=='popular' %}selected{% endif %}>По популярности</option>
+                        <option value="new" {% if sort=='new' %}selected{% endif %}>Новинки</option>
+                        <option value="price_asc" {% if sort=='price_asc' %}selected{% endif %}>Дешевле</option>
+                        <option value="price_desc" {% if sort=='price_desc' %}selected{% endif %}>Дороже</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-wb btn-sm w-100">Применить</button>
+            </form>
+        </div>
+    </div>
+    <div class="col-lg-10 col-md-9">
+        <h2 class="h5 mb-3">
+            {% if q %}Результаты для «{{ q }}»{% else %}Все товары{% endif %}
+            <span class="text-muted fw-normal fs-6">({{ pagination.total }})</span>
+        </h2>
+        {% if products %}
+        <div class="row row-cols-2 row-cols-md-3 row-cols-lg-4 g-3">
+            {% for product in products %}
+            <div class="col">{% include '_product_card.html' %}</div>
+            {% endfor %}
+        </div>
+        <nav class="mt-4">
+            <ul class="pagination justify-content-center">
+                {% if pagination.has_prev %}
+                <li class="page-item"><a class="page-link" href="?q={{ q }}&page={{ pagination.prev_num }}&sort={{ sort }}">‹</a></li>
+                {% endif %}
+                {% for p in pagination.iter_pages() %}
+                    {% if p %}
+                    <li class="page-item {% if p==pagination.page %}active{% endif %}">
+                        <a class="page-link" href="?q={{ q }}&page={{ p }}&sort={{ sort }}">{{ p }}</a>
+                    </li>
+                    {% else %}
+                    <li class="page-item disabled"><span class="page-link">…</span></li>
+                    {% endif %}
+                {% endfor %}
+                {% if pagination.has_next %}
+                <li class="page-item"><a class="page-link" href="?q={{ q }}&page={{ pagination.next_num }}&sort={{ sort }}">›</a></li>
+                {% endif %}
+            </ul>
+        </nav>
+        {% else %}
+        <div class="text-center py-5 text-muted">
+            <i class="bi bi-search fs-1 mb-3 d-block"></i>
+            <h5>Ничего не найдено</h5>
+            <p>Попробуйте изменить запрос или сбросить фильтры</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

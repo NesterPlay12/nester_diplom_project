@@ -1,0 +1,1 @@
+- [Flask + pnpm workspace coexistence](flask-pnpm-coexistence.md) — DATABASE_URL в окружении занята Node.js, для Flask использовать FLASK_DATABASE_URL

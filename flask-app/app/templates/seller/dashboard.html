@@ -1,0 +1,104 @@
+{% extends 'base.html' %}
+{% block title %}Кабинет продавца{% endblock %}
+{% block content %}
+
+<div class="d-flex align-items-center gap-3 mb-4">
+    <h2 class="h4 fw-bold mb-0">Кабинет продавца</h2>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-sm-6 col-lg-3">
+        <div class="stat-card">
+            <div class="d-flex align-items-center justify-content-between mb-2">
+                <span class="text-muted small">Всего товаров</span>
+                <div class="stat-icon" style="background:#f3e5ff;color:var(--wb-purple);">📦</div>
+            </div>
+            <div class="stat-value">{{ products|length }}</div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-lg-3">
+        <div class="stat-card">
+            <div class="d-flex align-items-center justify-content-between mb-2">
+                <span class="text-muted small">Активных товаров</span>
+                <div class="stat-icon" style="background:#e6f4ea;color:#2e7d32;">✅</div>
+            </div>
+            <div class="stat-value text-success">{{ active_count }}</div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-lg-3">
+        <div class="stat-card">
+            <div class="d-flex align-items-center justify-content-between mb-2">
+                <span class="text-muted small">На модерации</span>
+                <div class="stat-icon" style="background:#fff8e1;color:#f57c00;">⏳</div>
+            </div>
+            <div class="stat-value text-warning">{{ pending_count }}</div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-lg-3">
+        <div class="stat-card">
+            <div class="d-flex align-items-center justify-content-between mb-2">
+                <span class="text-muted small">Выручка</span>
+                <div class="stat-icon" style="background:#e3f2fd;color:#1565c0;">💰</div>
+            </div>
+            <div class="stat-value" style="font-size:1.4rem;">{{ "{:,.0f}".format(revenue) }} ₽</div>
+        </div>
+    </div>
+</div>
+
+<div class="d-flex gap-2 mb-4">
+    <a href="{{ url_for('seller.add_product') }}" class="btn btn-wb">
+        <i class="bi bi-plus-circle me-1"></i>Добавить товар
+    </a>
+    <a href="{{ url_for('seller.products') }}" class="btn btn-outline-secondary">
+        <i class="bi bi-list-ul me-1"></i>Мои товары
+    </a>
+</div>
+
+{% if products %}
+<div class="bg-white rounded-3 shadow-sm">
+    <div class="p-3 border-bottom fw-bold">Последние товары</div>
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Товар</th>
+                    <th>Цена</th>
+                    <th>Склад</th>
+                    <th>Рейтинг</th>
+                    <th>Статус</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in products[:10] %}
+                <tr>
+                    <td>
+                        <div class="d-flex align-items-center gap-2">
+                            <img src="{{ p.image_url or 'https://via.placeholder.com/40' }}"
+                                 style="width:40px;height:40px;object-fit:cover;border-radius:6px;">
+                            <span class="fw-semibold small">{{ p.name[:40] }}{% if p.name|length > 40 %}...{% endif %}</span>
+                        </div>
+                    </td>
+                    <td>{{ "{:,.0f}".format(p.price) }} ₽</td>
+                    <td>{{ p.stock }}</td>
+                    <td>
+                        <span class="text-warning">★</span> {{ p.rating|round(1) }}
+                    </td>
+                    <td>
+                        {% if not p.is_active %}<span class="badge bg-secondary">Снят</span>
+                        {% elif p.is_approved %}<span class="badge bg-success">Активен</span>
+                        {% else %}<span class="pending-badge">На модерации</span>{% endif %}
+                    </td>
+                    <td>
+                        <a href="{{ url_for('seller.edit_product', product_id=p.id) }}"
+                           class="btn btn-sm btn-outline-secondary">Изменить</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}

@@ -1,0 +1,91 @@
+{% extends 'base.html' %}
+{% block title %}Оформление заказа{% endblock %}
+{% block content %}
+
+<h2 class="h4 fw-bold mb-4">Оформление заказа</h2>
+
+<div class="row g-4">
+    <div class="col-lg-7">
+        <div class="bg-white rounded-3 p-4 shadow-sm mb-4">
+            <h5 class="fw-bold mb-3"><i class="bi bi-geo-alt me-2 text-wb"></i>Адрес доставки</h5>
+            <form method="post" id="checkout-form">
+                <div class="mb-3">
+                    <label class="form-label">Адрес <span class="text-danger">*</span></label>
+                    <textarea class="form-control" name="address" rows="2" required
+                              placeholder="Город, улица, дом, квартира">{{ current_user.address or '' }}</textarea>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Телефон</label>
+                    <input type="tel" class="form-control" name="phone"
+                           value="{{ current_user.phone or '' }}" placeholder="+7 (999) 999-99-99">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Комментарий к заказу</label>
+                    <textarea class="form-control" name="comment" rows="2"
+                              placeholder="Время доставки, инструкции для курьера..."></textarea>
+                </div>
+            </form>
+        </div>
+
+        <div class="bg-white rounded-3 p-4 shadow-sm">
+            <h5 class="fw-bold mb-3"><i class="bi bi-credit-card me-2 text-wb"></i>Способ оплаты</h5>
+            <div class="d-flex flex-column gap-2">
+                <div class="form-check p-3 border rounded-3">
+                    <input class="form-check-input" type="radio" name="payment" id="card" value="card" checked>
+                    <label class="form-check-label fw-semibold" for="card">
+                        <i class="bi bi-credit-card me-2"></i>Банковская карта
+                    </label>
+                </div>
+                <div class="form-check p-3 border rounded-3">
+                    <input class="form-check-input" type="radio" name="payment" id="cash" value="cash">
+                    <label class="form-check-label fw-semibold" for="cash">
+                        <i class="bi bi-cash me-2"></i>Наличными при получении
+                    </label>
+                </div>
+                <div class="form-check p-3 border rounded-3">
+                    <input class="form-check-input" type="radio" name="payment" id="sbp" value="sbp">
+                    <label class="form-check-label fw-semibold" for="sbp">
+                        <i class="bi bi-phone me-2"></i>СБП (Система Быстрых Платежей)
+                    </label>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-5">
+        <div class="bg-white rounded-3 p-4 shadow-sm sticky-top" style="top:70px;">
+            <h5 class="fw-bold mb-3">Ваш заказ</h5>
+            {% for item in items %}
+            {% if item.product %}
+            <div class="d-flex gap-2 mb-2 align-items-center">
+                <img src="{{ item.product.image_url or 'https://via.placeholder.com/48' }}"
+                     style="width:48px;height:48px;object-fit:cover;border-radius:6px;">
+                <div class="flex-grow-1">
+                    <div class="small fw-semibold text-truncate" style="max-width:180px;">{{ item.product.name }}</div>
+                    <div class="small text-muted">{{ item.quantity }} шт.</div>
+                </div>
+                <div class="fw-semibold small text-nowrap">{{ "{:,.0f}".format(item.product.price * item.quantity) }} ₽</div>
+            </div>
+            {% endif %}
+            {% endfor %}
+            <hr>
+            <div class="d-flex justify-content-between mb-1">
+                <span class="text-muted">Товары</span>
+                <span>{{ "{:,.0f}".format(total) }} ₽</span>
+            </div>
+            <div class="d-flex justify-content-between mb-1">
+                <span class="text-muted">Доставка</span>
+                <span class="text-success fw-semibold">Бесплатно</span>
+            </div>
+            <hr>
+            <div class="d-flex justify-content-between fw-bold fs-5 mb-4">
+                <span>Итого</span>
+                <span class="text-wb">{{ "{:,.0f}".format(total) }} ₽</span>
+            </div>
+            <button type="submit" form="checkout-form" class="btn btn-wb w-100 btn-lg fw-bold">
+                <i class="bi bi-bag-check me-2"></i>Подтвердить заказ
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,47 @@
+{% extends 'base.html' %}
+{% block title %}Настройки{% endblock %}
+{% block content %}
+
+<h2 class="h4 fw-bold mb-4">Настройки аккаунта</h2>
+
+<div class="row g-4">
+    <div class="col-md-7">
+        <div class="bg-white rounded-3 p-4 shadow-sm">
+            <form method="post">
+                <h5 class="fw-bold mb-3">Личные данные</h5>
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Имя пользователя</label>
+                    <input type="text" class="form-control" name="username" value="{{ current_user.username }}" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Телефон</label>
+                    <input type="tel" class="form-control" name="phone" value="{{ current_user.phone or '' }}">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Адрес доставки</label>
+                    <textarea class="form-control" name="address" rows="2">{{ current_user.address or '' }}</textarea>
+                </div>
+                <hr>
+                <h5 class="fw-bold mb-3">Смена пароля</h5>
+                <div class="mb-3">
+                    <label class="form-label">Текущий пароль</label>
+                    <input type="password" class="form-control" name="old_password" placeholder="Оставьте пустым, чтобы не менять">
+                </div>
+                <div class="row g-2 mb-3">
+                    <div class="col-6">
+                        <label class="form-label">Новый пароль</label>
+                        <input type="password" class="form-control" name="new_password" placeholder="Новый пароль">
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label">Повторить</label>
+                        <input type="password" class="form-control" name="confirm_password" placeholder="Повторите пароль">
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-wb">Сохранить изменения</button>
+                <a href="{{ url_for('account.profile') }}" class="btn btn-outline-secondary ms-2">Отмена</a>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

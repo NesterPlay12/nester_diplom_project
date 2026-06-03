@@ -1,0 +1,80 @@
+{% extends 'base.html' %}
+{% block title %}Корзина{% endblock %}
+{% block content %}
+
+<h2 class="h4 fw-bold mb-4">Корзина
+    <span class="text-muted fw-normal fs-6">({{ items|length }} товаров)</span>
+</h2>
+
+{% if items %}
+<div class="row g-4">
+    <div class="col-lg-8">
+        {% for item in items %}
+        {% if item.product %}
+        <div class="cart-item d-flex gap-3 align-items-start">
+            <a href="{{ url_for('main.product_detail', product_id=item.product.id) }}">
+                <img src="{{ item.product.image_url or 'https://via.placeholder.com/80x80?text=IMG' }}"
+                     alt="{{ item.product.name }}" class="rounded">
+            </a>
+            <div class="flex-grow-1">
+                <a href="{{ url_for('main.product_detail', product_id=item.product.id) }}"
+                   class="text-decoration-none text-dark fw-semibold">{{ item.product.name }}</a>
+                <div class="text-muted small mt-1">{{ item.product.brand or '' }}</div>
+                <div class="mt-2 fw-bold text-wb">{{ "{:,.0f}".format(item.product.price) }} ₽</div>
+            </div>
+            <div class="d-flex flex-column align-items-end gap-2">
+                <form action="{{ url_for('cart.update_quantity', item_id=item.id) }}" method="post"
+                      class="qty-control d-flex align-items-center border rounded overflow-hidden">
+                    <button type="submit" name="quantity" value="{{ item.quantity - 1 }}"
+                            class="btn btn-light px-2 py-1 border-0">−</button>
+                    <span class="px-3 py-1 fw-semibold">{{ item.quantity }}</span>
+                    <button type="submit" name="quantity" value="{{ item.quantity + 1 }}"
+                            class="btn btn-light px-2 py-1 border-0">+</button>
+                </form>
+                <div class="fw-bold">{{ "{:,.0f}".format(item.product.price * item.quantity) }} ₽</div>
+                <form action="{{ url_for('cart.remove_from_cart', item_id=item.id) }}" method="post">
+                    <button type="submit" class="btn btn-sm btn-outline-danger">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </form>
+            </div>
+        </div>
+        {% endif %}
+        {% endfor %}
+    </div>
+
+    <div class="col-lg-4">
+        <div class="bg-white rounded-3 p-4 shadow-sm sticky-top" style="top:70px;">
+            <h5 class="fw-bold mb-3">Итого</h5>
+            <div class="d-flex justify-content-between mb-2">
+                <span class="text-muted">Товары ({{ items|length }})</span>
+                <span>{{ "{:,.0f}".format(total) }} ₽</span>
+            </div>
+            <div class="d-flex justify-content-between mb-2">
+                <span class="text-muted">Доставка</span>
+                <span class="text-success">Бесплатно</span>
+            </div>
+            <hr>
+            <div class="d-flex justify-content-between fw-bold fs-5 mb-4">
+                <span>К оплате</span>
+                <span class="text-wb">{{ "{:,.0f}".format(total) }} ₽</span>
+            </div>
+            <a href="{{ url_for('cart.checkout') }}" class="btn btn-wb w-100 btn-lg fw-bold">
+                Оформить заказ
+            </a>
+            <a href="{{ url_for('main.index') }}" class="btn btn-outline-secondary w-100 mt-2">
+                Продолжить покупки
+            </a>
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="text-center py-5 text-muted">
+    <i class="bi bi-cart3 fs-1 mb-3 d-block" style="color:#ddd;"></i>
+    <h4>Корзина пуста</h4>
+    <p>Добавьте товары, которые хотите купить</p>
+    <a href="{{ url_for('main.index') }}" class="btn btn-wb px-5 mt-2">На главную</a>
+</div>
+{% endif %}
+
+{% endblock %}
