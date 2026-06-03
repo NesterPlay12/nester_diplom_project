@@ -3,27 +3,21 @@ import os
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 
 
+def _get_db_url():
+    url = (
+        os.environ.get('FLASK_DATABASE_URL') or
+        f'sqlite:///{os.path.join(BASE_DIR, "..", "wildberries.db")}'
+    )
+    # Render выдаёт postgres://, SQLAlchemy 2.x требует postgresql://
+    if url.startswith('postgres://'):
+        url = url.replace('postgres://', 'postgresql://', 1)
+    return url
+
+
 class Config:
     SECRET_KEY = os.environ.get('SESSION_SECRET', 'wildberries-dev-secret-2024')
     SQLALCHEMY_TRACK_MODIFICATIONS = False
-
-    MYSQL_HOST = os.environ.get('MYSQL_HOST', 'localhost')
-    MYSQL_USER = os.environ.get('MYSQL_USER', 'root')
-    MYSQL_PASSWORD = os.environ.get('MYSQL_PASSWORD', '')
-    MYSQL_DB = os.environ.get('MYSQL_DB', 'wildberries')
-
-    MYSQL_URL = os.environ.get(
-        'MYSQL_URL',
-        f'mysql+pymysql://{MYSQL_USER}:{MYSQL_PASSWORD}@{MYSQL_HOST}/{MYSQL_DB}?charset=utf8mb4'
-    )
-
-    SQLALCHEMY_DATABASE_URI = os.environ.get(
-        'FLASK_DATABASE_URL',
-        os.environ.get(
-            'MYSQL_URL',
-            f'sqlite:///{os.path.join(BASE_DIR, "..", "wildberries.db")}'
-        )
-    )
+    SQLALCHEMY_DATABASE_URI = _get_db_url()
 
     UPLOAD_FOLDER = os.path.join(BASE_DIR, 'static', 'uploads')
     MAX_CONTENT_LENGTH = 16 * 1024 * 1024
