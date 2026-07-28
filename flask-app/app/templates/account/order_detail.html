@@ -16,7 +16,7 @@
             <h5 class="fw-bold mb-3">Товары</h5>
             {% for item in order.items %}
             <div class="d-flex gap-3 align-items-center py-3 {% if not loop.last %}border-bottom{% endif %}">
-                <img src="{{ item.product_image or 'https://via.placeholder.com/64' }}"
+                <img src="{{ item.product_image or 'https://placehold.co/64x64/cb11ab/ffffff?text=?' }}"
                      style="width:64px;height:64px;object-fit:cover;border-radius:8px;">
                 <div class="flex-grow-1">
                     <div class="fw-semibold">{{ item.product_name }}</div>

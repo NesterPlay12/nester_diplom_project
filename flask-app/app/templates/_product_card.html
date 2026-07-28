@@ -1,7 +1,7 @@
 <div class="product-card">
     <div class="card-img-wrap">
         <a href="{{ url_for('main.product_detail', product_id=product.id) }}">
-            <img src="{{ product.image_url or 'https://via.placeholder.com/400x400?text=WildMarket' }}"
+            <img src="{{ product.image_url or 'https://placehold.co/400x400/cb11ab/ffffff?text=WildMarket' }}"
                  alt="{{ product.name }}" loading="lazy">
         </a>
         {% if product.discount_percent > 0 %}

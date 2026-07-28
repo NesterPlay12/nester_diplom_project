@@ -63,7 +63,7 @@ def add_product():
             old_price=old_price if old_price else None,
             brand=brand, category_id=category_id,
             seller_id=current_user.id, stock=stock,
-            image_url=image_url or 'https://via.placeholder.com/400x400?text=Фото',
+            image_url=image_url or 'https://placehold.co/400x400/cb11ab/ffffff?text=No+Image',
             is_active=True, is_approved=False
         )
         db.session.add(product)

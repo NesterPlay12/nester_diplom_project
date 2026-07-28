@@ -29,7 +29,7 @@
                 <tr>
                     <td>
                         <div class="d-flex align-items-center gap-2">
-                            <img src="{{ p.image_url or 'https://via.placeholder.com/48' }}"
+                            <img src="{{ p.image_url or 'https://placehold.co/48x48/cb11ab/ffffff?text=?' }}"
                                  style="width:48px;height:48px;object-fit:cover;border-radius:6px;">
                             <div>
                                 <div class="fw-semibold small">{{ p.name[:50] }}{% if p.name|length > 50 %}...{% endif %}</div>
