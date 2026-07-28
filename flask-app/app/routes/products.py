@@ -8,7 +8,7 @@ products_bp = Blueprint('products', __name__)
 @products_bp.route('/product/<int:product_id>/review', methods=['POST'])
 @login_required
 def add_review(product_id):
-    product = Product.query.get_or_404(product_id)
+    product = db.get_or_404(Product, product_id)
     existing = Review.query.filter_by(user_id=current_user.id, product_id=product_id).first()
     if existing:
         flash('Вы уже оставили отзыв на этот товар', 'warning')

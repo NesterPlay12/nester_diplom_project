@@ -16,7 +16,7 @@ def view_cart():
 @cart_bp.route('/add/<int:product_id>', methods=['POST'])
 @login_required
 def add_to_cart(product_id):
-    product = Product.query.get_or_404(product_id)
+    product = db.get_or_404(Product, product_id)
     quantity = request.form.get('quantity', 1, type=int)
     if quantity < 1:
         quantity = 1

@@ -53,7 +53,7 @@ def users():
 @login_required
 @admin_required
 def change_role(user_id):
-    user = User.query.get_or_404(user_id)
+    user = db.get_or_404(User, user_id)
     if user.id == current_user.id:
         flash('Нельзя изменить собственную роль', 'warning')
         return redirect(url_for('admin.users'))
@@ -69,7 +69,7 @@ def change_role(user_id):
 @login_required
 @admin_required
 def toggle_user(user_id):
-    user = User.query.get_or_404(user_id)
+    user = db.get_or_404(User, user_id)
     if user.id == current_user.id:
         flash('Нельзя заблокировать себя', 'warning')
         return redirect(url_for('admin.users'))
@@ -104,7 +104,7 @@ def products():
 @login_required
 @admin_required
 def approve_product(product_id):
-    product = Product.query.get_or_404(product_id)
+    product = db.get_or_404(Product, product_id)
     product.is_approved = True
     product.is_active = True
     db.session.commit()
@@ -116,7 +116,7 @@ def approve_product(product_id):
 @login_required
 @admin_required
 def reject_product(product_id):
-    product = Product.query.get_or_404(product_id)
+    product = db.get_or_404(Product, product_id)
     product.is_approved = False
     product.is_active = False
     db.session.commit()
@@ -128,7 +128,7 @@ def reject_product(product_id):
 @login_required
 @admin_required
 def delete_product(product_id):
-    product = Product.query.get_or_404(product_id)
+    product = db.get_or_404(Product, product_id)
     db.session.delete(product)
     db.session.commit()
     flash('Товар удалён', 'danger')
@@ -152,7 +152,7 @@ def orders():
 @login_required
 @admin_required
 def update_order_status(order_id):
-    order = Order.query.get_or_404(order_id)
+    order = db.get_or_404(Order, order_id)
     new_status = request.form.get('status')
     valid = ('pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled')
     if new_status in valid:
@@ -195,7 +195,7 @@ def add_category():
 @login_required
 @admin_required
 def delete_category(cat_id):
-    cat = Category.query.get_or_404(cat_id)
+    cat = db.get_or_404(Category, cat_id)
     if cat.children or cat.products:
         flash('Нельзя удалить категорию с подкатегориями или товарами', 'danger')
         return redirect(url_for('admin.categories'))
@@ -218,7 +218,7 @@ def reviews():
 @login_required
 @admin_required
 def delete_review(review_id):
-    review = Review.query.get_or_404(review_id)
+    review = db.get_or_404(Review, review_id)
     db.session.delete(review)
     db.session.commit()
     flash('Отзыв удалён', 'info')

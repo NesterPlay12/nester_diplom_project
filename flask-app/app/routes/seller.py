@@ -22,7 +22,6 @@ def seller_required(f):
 def dashboard():
     products = Product.query.filter_by(seller_id=current_user.id).all()
     product_ids = [p.id for p in products]
-    from ..models import OrderItem
     sold_items = OrderItem.query.filter(OrderItem.product_id.in_(product_ids)).all() if product_ids else []
     revenue = sum(i.price * i.quantity for i in sold_items)
     active_count = sum(1 for p in products if p.is_active and p.is_approved)
