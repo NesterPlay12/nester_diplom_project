@@ -6,3 +6,5 @@ pymysql>=1.1
 cryptography>=41.0
 psycopg2-binary>=2.9
 gunicorn>=21.0
+authlib>=1.3
+requests>=2.31
