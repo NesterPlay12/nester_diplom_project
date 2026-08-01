@@ -32,6 +32,7 @@ def create_app():
     from .routes.account import account_bp
     from .routes.seller import seller_bp
     from .routes.admin import admin_bp
+    from .routes.delivery import delivery_bp
 
     app.register_blueprint(main_bp)
     app.register_blueprint(auth_bp, url_prefix='/auth')
@@ -40,6 +41,7 @@ def create_app():
     app.register_blueprint(account_bp, url_prefix='/account')
     app.register_blueprint(seller_bp, url_prefix='/seller')
     app.register_blueprint(admin_bp, url_prefix='/admin')
+    app.register_blueprint(delivery_bp)
 
     with app.app_context():
         db.create_all()

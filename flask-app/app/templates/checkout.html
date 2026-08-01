@@ -1,91 +1,232 @@
 {% extends 'base.html' %}
 {% block title %}Оформление заказа{% endblock %}
-{% block content %}
 
+{% block extra_head %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+<style>
+  /* ── Карта ── */
+  #pvz-map { height: 360px; width: 100%; border-radius: 0 0 8px 8px; z-index: 0; }
+  #pvz-map-wrap { display: none; }
+  #pvz-list {
+    width: 260px; min-width: 260px; max-height: 360px;
+    overflow-y: auto; border: 1px solid #dee2e6;
+    border-right: none; border-radius: 8px 0 0 8px;
+    background: #fff; padding: 8px;
+  }
+  #pvz-list::-webkit-scrollbar { width: 4px; }
+  #pvz-list::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 2px; }
+  #pvz-map-col { flex: 1; min-width: 0; }
+  .pvz-list-item { cursor: pointer; border: 1px solid #e9ecef !important;
+                   transition: all .15s; }
+  .pvz-list-item:hover,
+  .pvz-list-item--active { background: #fdf0fb !important;
+                            border-color: #cb11ab !important; }
+  #pvz-spinner { display: none; align-items: center; justify-content: center;
+                 height: 120px; gap: 10px; color: #6c757d; }
+  /* ── Тип доставки ── */
+  .delivery-option { cursor: pointer; transition: border-color .15s, background .15s; }
+  .delivery-option:has(input:checked) { border-color: #cb11ab !important; background: #fdf0fb; }
+  /* ── Выбранный ПВЗ ── */
+  #selected-pvz-card { display: none; }
+  @media (max-width: 640px) {
+    #pvz-map-wrap { flex-direction: column !important; }
+    #pvz-list { width: 100%; min-width: unset; max-height: 200px;
+                border-radius: 8px 8px 0 0;
+                border-right: 1px solid #dee2e6; border-bottom: none; }
+    #pvz-map { height: 260px; border-radius: 0 0 8px 8px; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
 <h2 class="h4 fw-bold mb-4">Оформление заказа</h2>
 
+{# Единая форма — охватывает всё, включая скрытые поля пикапа #}
+<form method="post" id="checkout-form">
+
+  {# Скрытый итоговый адрес — JS заполняет перед сабмитом #}
+  <input type="hidden" name="address" id="final-address">
+  <input type="hidden" name="phone"   id="final-phone"   value="{{ current_user.phone or '' }}">
+  <input type="hidden" name="comment" id="final-comment" value="">
+
 <div class="row g-4">
-    <div class="col-lg-7">
-        <div class="bg-white rounded-3 p-4 shadow-sm mb-4">
-            <h5 class="fw-bold mb-3"><i class="bi bi-geo-alt me-2 text-wb"></i>Адрес доставки</h5>
-            <form method="post" id="checkout-form">
-                <div class="mb-3">
-                    <label class="form-label">Адрес <span class="text-danger">*</span></label>
-                    <textarea class="form-control" name="address" rows="2" required
-                              placeholder="Город, улица, дом, квартира">{{ current_user.address or '' }}</textarea>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label">Телефон</label>
-                    <input type="tel" class="form-control" name="phone"
-                           value="{{ current_user.phone or '' }}" placeholder="+7 (999) 999-99-99">
-                </div>
-                <div class="mb-3">
-                    <label class="form-label">Комментарий к заказу</label>
-                    <textarea class="form-control" name="comment" rows="2"
-                              placeholder="Время доставки, инструкции для курьера..."></textarea>
-                </div>
-            </form>
-        </div>
 
-        <div class="bg-white rounded-3 p-4 shadow-sm">
-            <h5 class="fw-bold mb-3"><i class="bi bi-credit-card me-2 text-wb"></i>Способ оплаты</h5>
-            <div class="d-flex flex-column gap-2">
-                <div class="form-check p-3 border rounded-3">
-                    <input class="form-check-input" type="radio" name="payment" id="card" value="card" checked>
-                    <label class="form-check-label fw-semibold" for="card">
-                        <i class="bi bi-credit-card me-2"></i>Банковская карта
-                    </label>
-                </div>
-                <div class="form-check p-3 border rounded-3">
-                    <input class="form-check-input" type="radio" name="payment" id="cash" value="cash">
-                    <label class="form-check-label fw-semibold" for="cash">
-                        <i class="bi bi-cash me-2"></i>Наличными при получении
-                    </label>
-                </div>
-                <div class="form-check p-3 border rounded-3">
-                    <input class="form-check-input" type="radio" name="payment" id="sbp" value="sbp">
-                    <label class="form-check-label fw-semibold" for="sbp">
-                        <i class="bi bi-phone me-2"></i>СБП (Система Быстрых Платежей)
-                    </label>
-                </div>
-            </div>
-        </div>
+  {# ═══════════════ Левая колонка ═══════════════ #}
+  <div class="col-lg-7">
+
+    {# ── Способ доставки ── #}
+    <div class="bg-white rounded-3 p-4 shadow-sm mb-4">
+      <h5 class="fw-bold mb-3"><i class="bi bi-truck me-2 text-wb"></i>Способ доставки</h5>
+      <div class="d-flex gap-3 flex-wrap">
+        <label class="delivery-option flex-grow-1 d-flex align-items-center gap-3 p-3 border rounded-3">
+          <input class="form-check-input mt-0 flex-shrink-0" type="radio"
+                 name="delivery_type" value="courier" checked>
+          <div>
+            <div class="fw-semibold"><i class="bi bi-house-door me-1"></i>Курьерская доставка</div>
+            <div class="small text-muted">Доставим по вашему адресу</div>
+          </div>
+        </label>
+        <label class="delivery-option flex-grow-1 d-flex align-items-center gap-3 p-3 border rounded-3">
+          <input class="form-check-input mt-0 flex-shrink-0" type="radio"
+                 name="delivery_type" value="pickup">
+          <div>
+            <div class="fw-semibold"><span class="me-1">📦</span>Самовывоз из ПВЗ</div>
+            <div class="small text-muted">СДЭК или Почта России</div>
+          </div>
+        </label>
+      </div>
     </div>
 
-    <div class="col-lg-5">
-        <div class="bg-white rounded-3 p-4 shadow-sm sticky-top" style="top:70px;">
-            <h5 class="fw-bold mb-3">Ваш заказ</h5>
-            {% for item in items %}
-            {% if item.product %}
-            <div class="d-flex gap-2 mb-2 align-items-center">
-                <img src="{{ item.product.image_url or 'https://placehold.co/48x48/cb11ab/ffffff?text=?' }}"
-                     style="width:48px;height:48px;object-fit:cover;border-radius:6px;">
-                <div class="flex-grow-1">
-                    <div class="small fw-semibold text-truncate" style="max-width:180px;">{{ item.product.name }}</div>
-                    <div class="small text-muted">{{ item.quantity }} шт.</div>
-                </div>
-                <div class="fw-semibold small text-nowrap">{{ "{:,.0f}".format(item.product.price * item.quantity) }} ₽</div>
-            </div>
-            {% endif %}
-            {% endfor %}
-            <hr>
-            <div class="d-flex justify-content-between mb-1">
-                <span class="text-muted">Товары</span>
-                <span>{{ "{:,.0f}".format(total) }} ₽</span>
-            </div>
-            <div class="d-flex justify-content-between mb-1">
-                <span class="text-muted">Доставка</span>
-                <span class="text-success fw-semibold">Бесплатно</span>
-            </div>
-            <hr>
-            <div class="d-flex justify-content-between fw-bold fs-5 mb-4">
-                <span>Итого</span>
-                <span class="text-wb">{{ "{:,.0f}".format(total) }} ₽</span>
-            </div>
-            <button type="submit" form="checkout-form" class="btn btn-wb w-100 btn-lg fw-bold">
-                <i class="bi bi-bag-check me-2"></i>Подтвердить заказ
-            </button>
-        </div>
+    {# ── Курьерская доставка ── #}
+    <div id="section-courier" class="bg-white rounded-3 p-4 shadow-sm mb-4">
+      <h5 class="fw-bold mb-3"><i class="bi bi-geo-alt me-2 text-wb"></i>Адрес доставки</h5>
+      <div class="mb-3">
+        <label class="form-label">Адрес <span class="text-danger">*</span></label>
+        <textarea class="form-control" id="courier-address" rows="2"
+                  placeholder="Город, улица, дом, квартира">{{ current_user.address or '' }}</textarea>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Телефон</label>
+        <input type="tel" class="form-control" id="courier-phone"
+               value="{{ current_user.phone or '' }}" placeholder="+7 (999) 999-99-99">
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Комментарий к заказу</label>
+        <textarea class="form-control" id="courier-comment" rows="2"
+                  placeholder="Время доставки, инструкции для курьера..."></textarea>
+      </div>
     </div>
-</div>
+
+    {# ── Самовывоз из ПВЗ ── #}
+    <div id="section-pickup" class="bg-white rounded-3 p-4 shadow-sm mb-4" style="display:none">
+      <h5 class="fw-bold mb-3"><i class="bi bi-shop me-2 text-wb"></i>Выберите пункт выдачи</h5>
+
+      {# Поиск города #}
+      <div class="d-flex gap-2 mb-3">
+        <div class="flex-grow-1">
+          <input type="text" class="form-control" id="pvz-city"
+                 placeholder="Введите город, например: Москва"
+                 list="city-suggestions">
+          <datalist id="city-suggestions">
+            <option value="Москва"><option value="Санкт-Петербург">
+            <option value="Новосибирск"><option value="Екатеринбург">
+            <option value="Казань"><option value="Нижний Новгород">
+            <option value="Красноярск"><option value="Краснодар">
+            <option value="Омск"><option value="Самара">
+            <option value="Ростов-на-Дону"><option value="Уфа">
+            <option value="Волгоград"><option value="Пермь"><option value="Воронеж">
+          </datalist>
+        </div>
+        <button class="btn btn-wb px-4 fw-semibold" type="button" id="btn-search-pvz">
+          <i class="bi bi-search me-1"></i>Найти
+        </button>
+      </div>
+
+      {# Фильтр провайдеров #}
+      <div class="d-flex gap-2 mb-3 flex-wrap align-items-center">
+        <button type="button" class="btn btn-wb btn-sm active" data-pvz-provider="all">Все</button>
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-pvz-provider="cdek">
+          <span style="color:#f97316;font-weight:700">●</span> СДЭК
+        </button>
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-pvz-provider="pochta">
+          <span style="color:#3b82f6;font-weight:700">●</span> Почта России
+        </button>
+        <span class="ms-auto small text-muted" id="pvz-count"></span>
+      </div>
+
+      {# Спиннер #}
+      <div id="pvz-spinner">
+        <div class="spinner-border spinner-border-sm text-wb"></div>
+        <span>Загружаем пункты выдачи…</span>
+      </div>
+
+      {# Карта + список #}
+      <div id="pvz-map-wrap" class="d-flex rounded-3 overflow-hidden border">
+        <div id="pvz-list"></div>
+        <div id="pvz-map-col"><div id="pvz-map"></div></div>
+      </div>
+
+      {# Карточка выбранного ПВЗ #}
+      <div id="selected-pvz-card" class="mt-3 p-3 rounded-3 border border-2"
+           style="border-color:#cb11ab !important; background:#fdf0fb;"></div>
+
+      {# Поле-отображение адреса ПВЗ (только для чтения) #}
+      <input type="text" class="form-control mt-3" id="pvz-address-display" readonly
+             placeholder="Адрес ПВЗ подставится после выбора на карте"
+             style="background:#f8f9fa;cursor:default">
+    </div>
+
+    {# ── Оплата ── #}
+    <div class="bg-white rounded-3 p-4 shadow-sm">
+      <h5 class="fw-bold mb-3"><i class="bi bi-credit-card me-2 text-wb"></i>Способ оплаты</h5>
+      <div class="d-flex flex-column gap-2">
+        <div class="form-check p-3 border rounded-3">
+          <input class="form-check-input" type="radio" name="payment" id="pay-card" value="card" checked>
+          <label class="form-check-label fw-semibold" for="pay-card">
+            <i class="bi bi-credit-card me-2"></i>Банковская карта
+          </label>
+        </div>
+        <div class="form-check p-3 border rounded-3">
+          <input class="form-check-input" type="radio" name="payment" id="pay-cash" value="cash">
+          <label class="form-check-label fw-semibold" for="pay-cash">
+            <i class="bi bi-cash me-2"></i>Наличными при получении
+          </label>
+        </div>
+        <div class="form-check p-3 border rounded-3">
+          <input class="form-check-input" type="radio" name="payment" id="pay-sbp" value="sbp">
+          <label class="form-check-label fw-semibold" for="pay-sbp">
+            <i class="bi bi-phone me-2"></i>СБП (Система Быстрых Платежей)
+          </label>
+        </div>
+      </div>
+    </div>
+
+  </div>{# /col-lg-7 #}
+
+  {# ═══════════════ Правая колонка — итог ═══════════════ #}
+  <div class="col-lg-5">
+    <div class="bg-white rounded-3 p-4 shadow-sm sticky-top" style="top:70px">
+      <h5 class="fw-bold mb-3">Ваш заказ</h5>
+      {% for item in items %}{% if item.product %}
+      <div class="d-flex gap-2 mb-2 align-items-center">
+        <img src="{{ item.product.image_url or 'https://placehold.co/48x48/cb11ab/ffffff?text=?' }}"
+             style="width:48px;height:48px;object-fit:cover;border-radius:6px;">
+        <div class="flex-grow-1">
+          <div class="small fw-semibold text-truncate" style="max-width:180px">{{ item.product.name }}</div>
+          <div class="small text-muted">{{ item.quantity }} шт.</div>
+        </div>
+        <div class="fw-semibold small text-nowrap">
+          {{ "{:,.0f}".format(item.product.price * item.quantity) }} ₽
+        </div>
+      </div>
+      {% endif %}{% endfor %}
+      <hr>
+      <div class="d-flex justify-content-between mb-1">
+        <span class="text-muted">Товары</span>
+        <span>{{ "{:,.0f}".format(total) }} ₽</span>
+      </div>
+      <div class="d-flex justify-content-between mb-1">
+        <span class="text-muted">Доставка</span>
+        <span class="text-success fw-semibold">Бесплатно</span>
+      </div>
+      <hr>
+      <div class="d-flex justify-content-between fw-bold fs-5 mb-4">
+        <span>Итого</span>
+        <span class="text-wb">{{ "{:,.0f}".format(total) }} ₽</span>
+      </div>
+      <button type="submit" class="btn btn-wb w-100 btn-lg fw-bold">
+        <i class="bi bi-bag-check me-2"></i>Подтвердить заказ
+      </button>
+    </div>
+  </div>
+
+</div>{# /row #}
+</form>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV/XN/sp/U=" crossorigin=""></script>
+<script src="{{ url_for('static', filename='js/delivery-map.js') }}"></script>
 {% endblock %}
