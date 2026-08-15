@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "WildMarket"
+description = "Flask marketplace with buyer, seller, admin, Google sign-in, product catalog, checkout, and delivery pickup points."
+version = "1.0.0"
+id = "artifacts/wildmarket"
+router = "path"
+
+[[services]]
+name = "web"
+paths = ["/"]
+localPort = 23111
+
+[services.development]
+run = "bash -lc 'if [ -f flask-app/start.sh ]; then exec bash flask-app/start.sh; else exec bash ../../flask-app/start.sh; fi'"
+
+[services.production]
+
+[services.production.run]
+args = ["bash", "-lc", "if [ -f flask-app/start.sh ]; then exec bash flask-app/start.sh; else exec bash ../../flask-app/start.sh; fi"]
+
+[services.production.health.startup]
+path = "/"
+
+[services.env]
+PORT = "23111"
+BASE_PATH = "/"
+FLASK_ENV = "production"

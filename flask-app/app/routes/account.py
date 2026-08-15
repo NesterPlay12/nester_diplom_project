@@ -16,14 +16,28 @@ def profile():
 @login_required
 def settings():
     if request.method == 'POST':
-        current_user.username = request.form.get('username', current_user.username).strip()
+        username = request.form.get('username', current_user.username).strip()
+        existing_username = User.query.filter(
+            User.username == username,
+            User.id != current_user.id,
+        ).first()
+        if existing_username:
+            flash('Это имя пользователя уже занято', 'danger')
+            return render_template('account/settings.html')
+        current_user.username = username
         current_user.phone = request.form.get('phone', '').strip()
         current_user.address = request.form.get('address', '').strip()
 
         new_password = request.form.get('new_password', '').strip()
         if new_password:
+            if len(new_password) < 6:
+                flash('Новый пароль должен содержать минимум 6 символов', 'danger')
+                return render_template('account/settings.html')
             old_password = request.form.get('old_password', '')
-            if not current_user.check_password(old_password):
+            # Для аккаунта, созданного через Google, текущего пароля может не быть:
+            # авторизованный Google-пользователь может задать его впервые.
+            has_google_only_auth = bool(current_user.google_id) and not old_password
+            if not has_google_only_auth and not current_user.check_password(old_password):
                 flash('Неверный текущий пароль', 'danger')
                 return render_template('account/settings.html')
             if new_password != request.form.get('confirm_password', ''):

@@ -30,3 +30,4 @@ class Config:
     # Google OAuth
     GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID', '')
     GOOGLE_CLIENT_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET', '')
+    GOOGLE_REDIRECT_URI = os.environ.get('GOOGLE_REDIRECT_URI', '')

@@ -1,5 +1,6 @@
 import os
-from flask import Blueprint, render_template, redirect, url_for, request, flash, session
+from urllib.parse import urlparse
+from flask import Blueprint, render_template, redirect, url_for, request, flash, session, current_app
 from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash
 from ..models import db, User
@@ -78,7 +79,14 @@ def logout():
 @auth_bp.route('/google')
 def google_login():
     """Перенаправляет пользователя на страницу авторизации Google."""
-    redirect_uri = url_for('auth.google_callback', _external=True)
+    if not current_app.config.get('GOOGLE_CLIENT_ID') or not current_app.config.get('GOOGLE_CLIENT_SECRET'):
+        flash('Вход через Google временно недоступен. Используйте email и пароль.', 'warning')
+        return redirect(url_for('auth.login'))
+
+    redirect_uri = (
+        current_app.config.get('GOOGLE_REDIRECT_URI')
+        or url_for('auth.google_callback', _external=True)
+    )
     # Сохраняем next, чтобы вернуться после логина
     session['oauth_next'] = request.args.get('next', '')
     return oauth.google.authorize_redirect(redirect_uri)
@@ -89,11 +97,20 @@ def google_callback():
     """Обрабатывает ответ от Google, создаёт или авторизует пользователя."""
     try:
         token = oauth.google.authorize_access_token()
-    except Exception as e:
+    except Exception:
+        current_app.logger.exception('Google OAuth token exchange failed')
         flash('Ошибка авторизации через Google. Попробуйте ещё раз.', 'danger')
         return redirect(url_for('auth.login'))
 
-    user_info = token.get('userinfo', {})
+    user_info = token.get('userinfo')
+    if not user_info:
+        try:
+            user_info = oauth.google.userinfo(token=token)
+        except Exception:
+            current_app.logger.exception('Google userinfo request failed')
+            user_info = {}
+    if hasattr(user_info, 'json'):
+        user_info = user_info.json()
     google_id = user_info.get('sub')
     email = user_info.get('email', '').strip()
     name = user_info.get('name', '') or email.split('@')[0]
@@ -143,5 +160,8 @@ def google_callback():
     login_user(user, remember=True)
     flash(f'Добро пожаловать, {user.username}!', 'success')
 
-    next_page = session.pop('oauth_next', '') or url_for('main.index')
-    return redirect(next_page)
+    next_page = session.pop('oauth_next', '')
+    parsed = urlparse(next_page)
+    if parsed.scheme or parsed.netloc or not next_page.startswith('/'):
+        next_page = ''
+    return redirect(next_page or url_for('main.index'))
