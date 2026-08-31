@@ -75,6 +75,8 @@ class Product(db.Model):
     rating = db.Column(db.Float, default=0.0)
     review_count = db.Column(db.Integer, default=0)
     image_url = db.Column(db.String(255))
+    color_options = db.Column(db.Text, default='')
+    size_options = db.Column(db.Text, default='')
     is_active = db.Column(db.Boolean, default=True)
     is_approved = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
@@ -90,6 +92,14 @@ class Product(db.Model):
             return int((1 - self.price / self.old_price) * 100)
         return 0
 
+    @property
+    def colors(self):
+        return [value.strip() for value in (self.color_options or '').split(',') if value.strip()]
+
+    @property
+    def sizes(self):
+        return [value.strip() for value in (self.size_options or '').split(',') if value.strip()]
+
     def __repr__(self):
         return f'<Product {self.name}>'
 
@@ -100,6 +110,8 @@ class CartItem(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     product_id = db.Column(db.Integer, db.ForeignKey('products.id'), nullable=False)
     quantity = db.Column(db.Integer, default=1)
+    selected_color = db.Column(db.String(80))
+    selected_size = db.Column(db.String(40))
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     __table_args__ = (db.UniqueConstraint('user_id', 'product_id'),)
@@ -154,6 +166,8 @@ class OrderItem(db.Model):
     product_image = db.Column(db.String(255))
     quantity = db.Column(db.Integer, nullable=False)
     price = db.Column(db.Float, nullable=False)
+    selected_color = db.Column(db.String(80))
+    selected_size = db.Column(db.String(40))
 
     product = db.relationship('Product')
 

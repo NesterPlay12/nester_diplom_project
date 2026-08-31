@@ -25,7 +25,7 @@
                     <label class="form-label fw-semibold">Родительская категория</label>
                     <select class="form-select" name="parent_id">
                         <option value="">Корневая категория</option>
-                        {% for cat in categories if not cat.parent_id %}
+                        {% for cat in root_categories %}
                         <option value="{{ cat.id }}">{{ cat.name }}</option>
                         {% endfor %}
                     </select>

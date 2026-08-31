@@ -1,0 +1,40 @@
+{% extends 'admin/dashboard.html' %}
+{% block page_title %}Редактировать товар{% endblock %}
+{% block admin_content %}
+<div class="row justify-content-center">
+  <div class="col-lg-8">
+    <div class="bg-white rounded-3 p-4 shadow-sm">
+      <div class="d-flex align-items-center gap-3 mb-4">
+        <a href="{{ url_for('admin.products') }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left"></i></a>
+        <h2 class="h5 fw-bold mb-0">{{ product.name }}</h2>
+      </div>
+      <form method="post">
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Название</label>
+          <input class="form-control" name="name" required value="{{ product.name }}">
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Описание</label>
+          <textarea class="form-control" name="description" rows="4">{{ product.description or '' }}</textarea>
+        </div>
+        <div class="row g-3 mb-3">
+          <div class="col-md-4"><label class="form-label fw-semibold">Цена (₽)</label><input class="form-control" type="number" name="price" min="1" step=".01" required value="{{ product.price }}"></div>
+          <div class="col-md-4"><label class="form-label fw-semibold">Старая цена</label><input class="form-control" type="number" name="old_price" min="1" step=".01" value="{{ product.old_price or '' }}"></div>
+          <div class="col-md-4"><label class="form-label fw-semibold">Остаток</label><input class="form-control" type="number" name="stock" min="0" value="{{ product.stock }}"></div>
+        </div>
+        <div class="row g-3 mb-3">
+          <div class="col-md-6"><label class="form-label fw-semibold">Категория</label><select class="form-select" name="category_id">{% for cat in categories %}<option value="{{ cat.id }}" {% if cat.id == product.category_id %}selected{% endif %}>{% if cat.parent %}— {% endif %}{{ cat.name }}</option>{% endfor %}</select></div>
+          <div class="col-md-6"><label class="form-label fw-semibold">Бренд</label><input class="form-control" name="brand" value="{{ product.brand or '' }}"></div>
+        </div>
+        <div class="row g-3 mb-3">
+          <div class="col-md-6"><label class="form-label fw-semibold">Цвета</label><input class="form-control" name="color_options" value="{{ product.color_options or '' }}" placeholder="Чёрный, Белый, Синий"><div class="form-text">Варианты через запятую</div></div>
+          <div class="col-md-6"><label class="form-label fw-semibold">Размеры</label><input class="form-control" name="size_options" value="{{ product.size_options or '' }}" placeholder="S, M, L, XL"><div class="form-text">Варианты через запятую</div></div>
+        </div>
+        <div class="mb-4"><label class="form-label fw-semibold">URL изображения</label><input class="form-control" type="url" name="image_url" value="{{ product.image_url or '' }}"></div>
+        <button class="btn btn-wb px-4" type="submit">Сохранить изменения</button>
+        <a href="{{ url_for('admin.products') }}" class="btn btn-outline-secondary ms-2">Отмена</a>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

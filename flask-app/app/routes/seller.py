@@ -53,6 +53,8 @@ def add_product():
         category_id = request.form.get('category_id', type=int)
         stock = request.form.get('stock', 0, type=int)
         image_url = request.form.get('image_url', '').strip()
+        color_options = request.form.get('color_options', '').strip()
+        size_options = request.form.get('size_options', '').strip()
 
         if not name or not price or not category_id:
             flash('Заполните обязательные поля: название, цена, категория', 'danger')
@@ -64,6 +66,7 @@ def add_product():
             brand=brand, category_id=category_id,
             seller_id=current_user.id, stock=stock,
             image_url=image_url or 'https://placehold.co/400x400/cb11ab/ffffff?text=No+Image',
+            color_options=color_options, size_options=size_options,
             is_active=True, is_approved=False
         )
         db.session.add(product)
@@ -89,6 +92,8 @@ def edit_product(product_id):
         product.category_id = request.form.get('category_id', product.category_id, type=int)
         product.stock = request.form.get('stock', 0, type=int)
         image_url = request.form.get('image_url', '').strip()
+        product.color_options = request.form.get('color_options', '').strip()
+        product.size_options = request.form.get('size_options', '').strip()
         if image_url:
             product.image_url = image_url
         product.is_approved = False

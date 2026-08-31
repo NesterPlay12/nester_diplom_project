@@ -195,6 +195,12 @@
         <div class="flex-grow-1">
           <div class="small fw-semibold text-truncate" style="max-width:180px">{{ item.product.name }}</div>
           <div class="small text-muted">{{ item.quantity }} шт.</div>
+          {% if item.selected_color or item.selected_size %}
+          <div class="small text-muted">
+            {% if item.selected_color %}{{ item.selected_color }}{% endif %}
+            {% if item.selected_size %} · {{ item.selected_size }}{% endif %}
+          </div>
+          {% endif %}
         </div>
         <div class="fw-semibold small text-nowrap">
           {{ "{:,.0f}".format(item.product.price * item.quantity) }} ₽

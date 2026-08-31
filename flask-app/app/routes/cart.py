@@ -18,13 +18,19 @@ def view_cart():
 def add_to_cart(product_id):
     product = db.get_or_404(Product, product_id)
     quantity = request.form.get('quantity', 1, type=int)
+    selected_color = request.form.get('color', '').strip() or None
+    selected_size = request.form.get('size', '').strip() or None
     if quantity < 1:
         quantity = 1
-    existing = CartItem.query.filter_by(user_id=current_user.id, product_id=product_id).first()
+    existing = CartItem.query.filter_by(
+        user_id=current_user.id, product_id=product_id,
+        selected_color=selected_color, selected_size=selected_size
+    ).first()
     if existing:
         existing.quantity = min(existing.quantity + quantity, product.stock or 99)
     else:
-        item = CartItem(user_id=current_user.id, product_id=product_id, quantity=quantity)
+        item = CartItem(user_id=current_user.id, product_id=product_id, quantity=quantity,
+                        selected_color=selected_color, selected_size=selected_size)
         db.session.add(item)
     db.session.commit()
     count = CartItem.query.filter_by(user_id=current_user.id).count()
@@ -94,6 +100,7 @@ def checkout():
                     product_image=item.product.image_url,
                     quantity=item.quantity,
                     price=item.product.price
+                    , selected_color=item.selected_color, selected_size=item.selected_size
                 )
                 db.session.add(oi)
                 if item.product.stock:

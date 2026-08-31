@@ -135,6 +135,31 @@ def delete_product(product_id):
     return redirect(url_for('admin.products'))
 
 
+@admin_bp.route('/products/<int:product_id>/edit', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def edit_product(product_id):
+    product = db.get_or_404(Product, product_id)
+    categories = Category.query.order_by(Category.parent_id, Category.name).all()
+    if request.method == 'POST':
+        product.name = request.form.get('name', product.name).strip()
+        product.description = request.form.get('description', '').strip()
+        product.price = request.form.get('price', product.price, type=float)
+        product.old_price = request.form.get('old_price', type=float) or None
+        product.brand = request.form.get('brand', '').strip()
+        product.category_id = request.form.get('category_id', product.category_id, type=int)
+        product.stock = request.form.get('stock', product.stock, type=int)
+        product.color_options = request.form.get('color_options', '').strip()
+        product.size_options = request.form.get('size_options', '').strip()
+        image_url = request.form.get('image_url', '').strip()
+        if image_url:
+            product.image_url = image_url
+        db.session.commit()
+        flash(f'Товар "{product.name}" обновлён', 'success')
+        return redirect(url_for('admin.products'))
+    return render_template('admin/edit_product.html', product=product, categories=categories)
+
+
 @admin_bp.route('/orders')
 @login_required
 @admin_required
@@ -167,7 +192,8 @@ def update_order_status(order_id):
 @admin_required
 def categories():
     cats = Category.query.order_by(Category.parent_id, Category.name).all()
-    return render_template('admin/categories.html', categories=cats)
+    roots = [cat for cat in cats if not cat.parent_id]
+    return render_template('admin/categories.html', categories=cats, root_categories=roots)
 
 
 @admin_bp.route('/categories/add', methods=['POST'])

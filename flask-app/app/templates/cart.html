@@ -20,6 +20,12 @@
                 <a href="{{ url_for('main.product_detail', product_id=item.product.id) }}"
                    class="text-decoration-none text-dark fw-semibold">{{ item.product.name }}</a>
                 <div class="text-muted small mt-1">{{ item.product.brand or '' }}</div>
+                {% if item.selected_color or item.selected_size %}
+                <div class="small text-muted mt-1">
+                    {% if item.selected_color %}<span class="badge bg-light text-dark border me-1">Цвет: {{ item.selected_color }}</span>{% endif %}
+                    {% if item.selected_size %}<span class="badge bg-light text-dark border">Размер: {{ item.selected_size }}</span>{% endif %}
+                </div>
+                {% endif %}
                 <div class="mt-2 fw-bold text-wb">{{ "{:,.0f}".format(item.product.price) }} ₽</div>
             </div>
             <div class="d-flex flex-column align-items-end gap-2">

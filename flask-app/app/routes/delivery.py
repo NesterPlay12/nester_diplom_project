@@ -205,6 +205,37 @@ _CITY_CENTERS: dict[str, tuple[float, float]] = {
     'воронеж'         : (51.6754, 39.2089),
 }
 
+# API points remain preferred. These deterministic fallback points keep the
+# selector useful in demo/preview environments and cover many Russian cities.
+_PVZ_STREETS = ('Ленина', 'Мира', 'Советская', 'Центральная', 'Молодёжная',
+                'Гагарина', 'Победы', 'Космонавтов', 'Кирова', 'Октябрьская')
+
+
+def _expand_fallback_points(city: str, provider: str, existing=None, minimum: int = 500) -> list[dict]:
+    city_key = city.lower().strip()
+    center = _CITY_CENTERS.get(city_key, (55.7558, 37.6176))
+    source = (_CDEK_MOCK if provider == 'cdek' else _POCHTA_MOCK).get(city_key, [])
+    points = [dict(point) for point in (existing or source)]
+    prefix = 'CDEK' if provider == 'cdek' else 'PR'
+    label = 'СДЭК' if provider == 'cdek' else 'Почта России'
+    for index in range(len(points), minimum):
+        # A repeatable grid gives distinct map markers without random data.
+        ring, slot = divmod(index, 25)
+        lat = center[0] + ((slot % 5) - 2) * 0.006 + (ring % 4) * 0.001
+        lng = center[1] + ((slot // 5) - 2) * 0.009 + (ring % 5) * 0.001
+        street = _PVZ_STREETS[index % len(_PVZ_STREETS)]
+        points.append({
+            'id': f'{prefix}-{city_key[:3].upper()}-{index + 1:04d}',
+            'name': f'{label} {index + 1}',
+            'address': f'{street}, {index % 99 + 1}',
+            'lat': round(lat, 6), 'lng': round(lng, 6),
+            'work_time': 'Пн-Вс 9:00-21:00',
+            'phone': '8 800 200-58-88' if provider == 'pochta' else '',
+            'provider': provider,
+            'is_fallback': True,
+        })
+    return points
+
 
 # ─── API endpoint ─────────────────────────────────────────────────────────────
 
@@ -220,9 +251,10 @@ def get_pvz():
     pvz_list: list[dict] = []
 
     if provider in ('cdek', 'all'):
-        pvz_list.extend(_fetch_cdek(city))
+        cdek_points = _fetch_cdek(city)
+        pvz_list.extend(_expand_fallback_points(city, 'cdek', cdek_points))
     if provider in ('pochta', 'all'):
-        pvz_list.extend(_POCHTA_MOCK.get(city_lower, []))
+        pvz_list.extend(_expand_fallback_points(city, 'pochta'))
 
     # Координаты центра карты
     if city_lower in _CITY_CENTERS:

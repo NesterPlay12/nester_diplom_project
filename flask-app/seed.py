@@ -85,13 +85,18 @@ with app.app_context():
         ('Гарри Поттер: Полное собрание', 'Все 7 книг серии о Гарри Поттере в твёрдом переплёте. Перевод Mahon.', 4490, 5990, 'Азбука', 'books', seller2.id, 75, 4.9, 2341, '/static/uploads/products/harry-potter-books.jpg'),
     ]
 
-    for name, desc, price, old_price, brand, cat_slug, seller_id, stock, rating, reviews_count, img in products_data:
+    for index, (name, desc, price, old_price, brand, cat_slug, seller_id, stock, rating, reviews_count, img) in enumerate(products_data):
         p = Product(
             name=name, description=desc, price=price, old_price=old_price,
             brand=brand, category_id=cats[cat_slug].id, seller_id=seller_id,
             stock=stock, rating=rating, review_count=reviews_count,
             image_url=img, is_active=True, is_approved=True
         )
+        if cat_slug in ('womens-clothing', 'mens-clothing', 'shoes'):
+            p.color_options = 'Чёрный, Белый, Синий'
+            p.size_options = 'S, M, L, XL' if cat_slug != 'shoes' else '36, 37, 38, 39, 40, 41, 42'
+        elif cat_slug in ('smartphones', 'laptops'):
+            p.color_options = 'Чёрный, Серебристый'
         db.session.add(p)
 
     db.session.commit()

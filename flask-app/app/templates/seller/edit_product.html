@@ -39,6 +39,20 @@
                 </div>
                 <div class="row g-3 mb-3">
                     <div class="col-md-6">
+                        <label class="form-label fw-semibold">Цвета</label>
+                        <input type="text" class="form-control" name="color_options"
+                               value="{{ product.color_options or '' }}" placeholder="Чёрный, Белый, Синий">
+                        <div class="form-text">Варианты через запятую</div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Размеры</label>
+                        <input type="text" class="form-control" name="size_options"
+                               value="{{ product.size_options or '' }}" placeholder="S, M, L, XL">
+                        <div class="form-text">Варианты через запятую</div>
+                    </div>
+                </div>
+                <div class="row g-3 mb-3">
+                    <div class="col-md-6">
                         <label class="form-label fw-semibold">Категория <span class="text-danger">*</span></label>
                         <select class="form-select" name="category_id" required>
                             {% for cat in categories %}

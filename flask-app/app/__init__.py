@@ -58,11 +58,45 @@ def create_app():
 def _run_migrations():
     """Добавляет новые колонки, если их ещё нет в БД."""
     with db.engine.connect() as conn:
-        try:
-            conn.execute(text("ALTER TABLE users ADD COLUMN google_id VARCHAR(100)"))
-            conn.commit()
-        except Exception:
-            pass  # колонка уже есть
+        migrations = (
+            "ALTER TABLE users ADD COLUMN google_id VARCHAR(100)",
+            "ALTER TABLE products ADD COLUMN color_options TEXT DEFAULT ''",
+            "ALTER TABLE products ADD COLUMN size_options TEXT DEFAULT ''",
+            "ALTER TABLE cart_items ADD COLUMN selected_color VARCHAR(80)",
+            "ALTER TABLE cart_items ADD COLUMN selected_size VARCHAR(40)",
+            "ALTER TABLE order_items ADD COLUMN selected_color VARCHAR(80)",
+            "ALTER TABLE order_items ADD COLUMN selected_size VARCHAR(40)",
+        )
+        for statement in migrations:
+            try:
+                conn.execute(text(statement))
+                conn.commit()
+            except Exception:
+                pass  # колонка уже есть
+        # Give the seeded apparel/electronics catalog useful defaults without
+        # overwriting values a seller has already entered.
+        for statement in (
+            """UPDATE products SET color_options = 'Чёрный, Белый, Синий'
+               WHERE (color_options IS NULL OR color_options = '')
+                 AND category_id IN (SELECT id FROM categories
+                                     WHERE slug IN ('womens-clothing','mens-clothing','shoes'))""",
+            """UPDATE products SET size_options = 'S, M, L, XL'
+               WHERE (size_options IS NULL OR size_options = '')
+                 AND category_id IN (SELECT id FROM categories
+                                     WHERE slug IN ('womens-clothing','mens-clothing'))""",
+            """UPDATE products SET size_options = '36, 37, 38, 39, 40, 41, 42'
+               WHERE (size_options IS NULL OR size_options = '')
+                 AND category_id IN (SELECT id FROM categories WHERE slug = 'shoes')""",
+            """UPDATE products SET color_options = 'Чёрный, Серебристый'
+               WHERE (color_options IS NULL OR color_options = '')
+                 AND category_id IN (SELECT id FROM categories
+                                     WHERE slug IN ('smartphones','laptops'))""",
+        ):
+            try:
+                conn.execute(text(statement))
+                conn.commit()
+            except Exception:
+                pass
 
 
 @login_manager.user_loader
