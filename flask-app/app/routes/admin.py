@@ -147,6 +147,7 @@ def edit_product(product_id):
         product.price = request.form.get('price', product.price, type=float)
         product.old_price = request.form.get('old_price', type=float) or None
         product.brand = request.form.get('brand', '').strip()
+        product.sku = request.form.get('sku', '').strip()
         product.category_id = request.form.get('category_id', product.category_id, type=int)
         product.stock = request.form.get('stock', product.stock, type=int)
         product.color_options = request.form.get('color_options', '').strip()

@@ -26,6 +26,7 @@
           <div class="col-md-6"><label class="form-label fw-semibold">Категория</label><select class="form-select" name="category_id">{% for cat in categories %}<option value="{{ cat.id }}" {% if cat.id == product.category_id %}selected{% endif %}>{% if cat.parent %}— {% endif %}{{ cat.name }}</option>{% endfor %}</select></div>
           <div class="col-md-6"><label class="form-label fw-semibold">Бренд</label><input class="form-control" name="brand" value="{{ product.brand or '' }}"></div>
         </div>
+        <div class="mb-3"><label class="form-label fw-semibold">Артикул (SKU)</label><input class="form-control" name="sku" value="{{ product.sku or '' }}" placeholder="Например, WM-10001"></div>
         <div class="row g-3 mb-3">
           <div class="col-md-6"><label class="form-label fw-semibold">Цвета</label><input class="form-control" name="color_options" value="{{ product.color_options or '' }}" placeholder="Чёрный, Белый, Синий"><div class="form-text">Варианты через запятую</div></div>
           <div class="col-md-6"><label class="form-label fw-semibold">Размеры</label><input class="form-control" name="size_options" value="{{ product.size_options or '' }}" placeholder="S, M, L, XL"><div class="form-text">Варианты через запятую</div></div>

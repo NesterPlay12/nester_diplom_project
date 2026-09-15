@@ -67,6 +67,10 @@
                         <input type="text" class="form-control" name="brand" value="{{ product.brand or '' }}">
                     </div>
                 </div>
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Артикул (SKU)</label>
+                    <input type="text" class="form-control" name="sku" value="{{ product.sku or '' }}">
+                </div>
                 <div class="mb-4">
                     <label class="form-label fw-semibold">URL изображения</label>
                     <input type="url" class="form-control" name="image_url" value="{{ product.image_url or '' }}"

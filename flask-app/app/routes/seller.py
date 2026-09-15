@@ -50,6 +50,7 @@ def add_product():
         price = request.form.get('price', type=float)
         old_price = request.form.get('old_price', type=float)
         brand = request.form.get('brand', '').strip()
+        sku = request.form.get('sku', '').strip()
         category_id = request.form.get('category_id', type=int)
         stock = request.form.get('stock', 0, type=int)
         image_url = request.form.get('image_url', '').strip()
@@ -63,7 +64,7 @@ def add_product():
         product = Product(
             name=name, description=description, price=price,
             old_price=old_price if old_price else None,
-            brand=brand, category_id=category_id,
+            brand=brand, sku=sku, category_id=category_id,
             seller_id=current_user.id, stock=stock,
             image_url=image_url or 'https://placehold.co/400x400/cb11ab/ffffff?text=No+Image',
             color_options=color_options, size_options=size_options,
@@ -89,6 +90,7 @@ def edit_product(product_id):
         old_price = request.form.get('old_price', type=float)
         product.old_price = old_price if old_price else None
         product.brand = request.form.get('brand', '').strip()
+        product.sku = request.form.get('sku', '').strip()
         product.category_id = request.form.get('category_id', product.category_id, type=int)
         product.stock = request.form.get('stock', 0, type=int)
         image_url = request.form.get('image_url', '').strip()
