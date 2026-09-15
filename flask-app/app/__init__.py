@@ -50,7 +50,10 @@ def create_app():
     # Передаём флаг Google OAuth во все шаблоны
     @app.context_processor
     def inject_google_oauth():
-        return {'google_oauth_enabled': bool(app.config.get('GOOGLE_CLIENT_ID'))}
+        return {
+            'google_oauth_enabled': bool(app.config.get('GOOGLE_CLIENT_ID')),
+            'yandex_maps_api_key': app.config.get('YANDEX_MAPS_API_KEY', ''),
+        }
 
     return app
 

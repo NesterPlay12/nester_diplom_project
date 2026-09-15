@@ -2,28 +2,34 @@
 {% block title %}Оформление заказа{% endblock %}
 
 {% block extra_head %}
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
 <style>
-  /* ── Карта ── */
-  #pvz-map { height: 360px; width: 100%; border-radius: 0 0 8px 8px; z-index: 0; }
+  /* ── Интерфейс выбора ПВЗ в стиле маркетплейса ── */
+  #pvz-map { height: 520px; width: 100%; }
   #pvz-map-wrap { display: none; }
   #pvz-list {
-    width: 260px; min-width: 260px; max-height: 360px;
-    overflow-y: auto; border: 1px solid #dee2e6;
-    border-right: none; border-radius: 8px 0 0 8px;
-    background: #fff; padding: 8px;
+    width: 290px; min-width: 290px; height: 520px;
+    overflow-y: auto; background: #161616; padding: 10px 8px;
+    color: #fff;
   }
-  #pvz-list::-webkit-scrollbar { width: 4px; }
-  #pvz-list::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 2px; }
+  #pvz-list::-webkit-scrollbar { width: 5px; }
+  #pvz-list::-webkit-scrollbar-thumb { background: #555; border-radius: 3px; }
   #pvz-map-col { flex: 1; min-width: 0; }
-  .pvz-list-item { cursor: pointer; border: 1px solid #e9ecef !important;
-                   transition: all .15s; }
-  .pvz-list-item:hover,
-  .pvz-list-item--active { background: #fdf0fb !important;
-                            border-color: #cb11ab !important; }
+  .pvz-list-item { cursor: pointer; border: 1px solid transparent !important;
+                   border-radius: 6px; padding: 11px 10px !important;
+                   transition: background .15s; }
+  .pvz-list-item:hover, .pvz-list-item--active { background: #292929 !important;
+                            border-color: #484848 !important; }
+  .pvz-list-item .pvz-address { color: #d4d4d4; }
+  .pvz-list-item .pvz-meta { color: #989898; font-size: 11px; }
+  .pvz-list-item .pvz-star { color: #ffc400; }
+  .pvz-map-search { position:absolute; z-index:401; top:12px; left:12px; width:min(330px, calc(100% - 24px)); }
+  .pvz-map-search input { box-shadow:0 2px 10px rgba(0,0,0,.18); border:0; }
+  .pvz-map-overlay { position:relative; }
+  .pvz-map-legend { position:absolute; z-index:401; left:12px; bottom:12px;
+                    background:#fff; border-radius:8px; padding:8px 10px;
+                    box-shadow:0 2px 10px rgba(0,0,0,.16); font-size:11px; }
   #pvz-spinner { display: none; align-items: center; justify-content: center;
-                 height: 120px; gap: 10px; color: #6c757d; }
+                 height: 120px; gap: 10px; color: #aaa; background:#161616; }
   /* ── Тип доставки ── */
   .delivery-option { cursor: pointer; transition: border-color .15s, background .15s; }
   .delivery-option:has(input:checked) { border-color: #cb11ab !important; background: #fdf0fb; }
@@ -31,10 +37,9 @@
   #selected-pvz-card { display: none; }
   @media (max-width: 640px) {
     #pvz-map-wrap { flex-direction: column !important; }
-    #pvz-list { width: 100%; min-width: unset; max-height: 200px;
-                border-radius: 8px 8px 0 0;
-                border-right: 1px solid #dee2e6; border-bottom: none; }
-    #pvz-map { height: 260px; border-radius: 0 0 8px 8px; }
+    #pvz-list { width: 100%; min-width: unset; height: 220px; order:2; }
+    #pvz-map { height: 320px; }
+    .pvz-map-legend { bottom: 8px; }
   }
 </style>
 {% endblock %}
@@ -144,7 +149,17 @@
       {# Карта + список #}
       <div id="pvz-map-wrap" class="d-flex rounded-3 overflow-hidden border">
         <div id="pvz-list"></div>
-        <div id="pvz-map-col"><div id="pvz-map"></div></div>
+        <div id="pvz-map-col" class="pvz-map-overlay">
+          <div class="pvz-map-search">
+            <input class="form-control" id="pvz-map-search" type="search"
+                   placeholder="Поиск мест и адресов">
+          </div>
+          <div id="pvz-map"></div>
+          <div class="pvz-map-legend">
+            <span class="me-2"><b style="color:#ff7a00">●</b> СДЭК</span>
+            <span><b style="color:#a700ff">●</b> Почта России</span>
+          </div>
+        </div>
       </div>
 
       {# Карточка выбранного ПВЗ #}
@@ -232,7 +247,6 @@
 {% endblock %}
 
 {% block extra_scripts %}
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV/XN/sp/U=" crossorigin=""></script>
+<script src="https://api-maps.yandex.ru/2.1/?lang=ru_RU{% if yandex_maps_api_key %}&apikey={{ yandex_maps_api_key }}{% endif %}"></script>
 <script src="{{ url_for('static', filename='js/delivery-map.js') }}"></script>
 {% endblock %}
