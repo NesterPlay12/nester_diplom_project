@@ -110,11 +110,16 @@ class CartItem(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     product_id = db.Column(db.Integer, db.ForeignKey('products.id'), nullable=False)
     quantity = db.Column(db.Integer, default=1)
-    selected_color = db.Column(db.String(80))
-    selected_size = db.Column(db.String(40))
+    selected_color = db.Column(db.String(80), nullable=False, default='')
+    selected_size = db.Column(db.String(40), nullable=False, default='')
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
-    __table_args__ = (db.UniqueConstraint('user_id', 'product_id'),)
+    __table_args__ = (
+        db.UniqueConstraint(
+            'user_id', 'product_id', 'selected_color', 'selected_size',
+            name='uq_cart_item_variant',
+        ),
+    )
 
 
 class Order(db.Model):

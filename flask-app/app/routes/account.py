@@ -1,6 +1,8 @@
 from flask import Blueprint, render_template, redirect, url_for, request, flash
 from flask_login import login_required, current_user
+from sqlalchemy import func
 from ..models import db, User, Order, Favorite
+from ..services.orders import transition_order
 
 account_bp = Blueprint('account', __name__)
 
@@ -18,7 +20,7 @@ def settings():
     if request.method == 'POST':
         username = request.form.get('username', current_user.username).strip()
         existing_username = User.query.filter(
-            User.username == username,
+            func.lower(User.username) == username.lower(),
             User.id != current_user.id,
         ).first()
         if existing_username:
@@ -30,8 +32,8 @@ def settings():
 
         new_password = request.form.get('new_password', '').strip()
         if new_password:
-            if len(new_password) < 6:
-                flash('Новый пароль должен содержать минимум 6 символов', 'danger')
+            if len(new_password) < 8:
+                flash('Новый пароль должен содержать минимум 8 символов', 'danger')
                 return render_template('account/settings.html')
             old_password = request.form.get('old_password', '')
             # Для аккаунта, созданного через Google, текущего пароля может не быть:
@@ -73,7 +75,9 @@ def cancel_order(order_id):
     if order.status not in ('pending', 'confirmed'):
         flash('Этот заказ нельзя отменить', 'danger')
     else:
-        order.status = 'cancelled'
+        if not transition_order(order, 'cancelled'):
+            flash('Этот заказ нельзя отменить', 'danger')
+            return redirect(url_for('account.order_detail', order_id=order_id))
         db.session.commit()
         flash(f'Заказ #{order.id} отменён', 'info')
     return redirect(url_for('account.order_detail', order_id=order_id))

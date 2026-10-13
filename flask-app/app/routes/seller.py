@@ -2,6 +2,7 @@ from flask import Blueprint, render_template, redirect, url_for, request, flash
 from flask_login import login_required, current_user
 from functools import wraps
 from ..models import db, Product, Category, Order, OrderItem
+from ..services.product_input import apply_product_form, parse_product_form
 
 seller_bp = Blueprint('seller', __name__)
 
@@ -22,13 +23,18 @@ def seller_required(f):
 def dashboard():
     products = Product.query.filter_by(seller_id=current_user.id).all()
     product_ids = [p.id for p in products]
-    sold_items = OrderItem.query.filter(OrderItem.product_id.in_(product_ids)).all() if product_ids else []
+    sold_items = (
+        OrderItem.query.join(Order, Order.id == OrderItem.order_id)
+        .filter(OrderItem.product_id.in_(product_ids), Order.status != 'cancelled')
+        .all()
+        if product_ids else []
+    )
     revenue = sum(i.price * i.quantity for i in sold_items)
     active_count = sum(1 for p in products if p.is_active and p.is_approved)
     pending_count = sum(1 for p in products if not p.is_approved)
     return render_template('seller/dashboard.html', products=products, revenue=revenue,
                            active_count=active_count, pending_count=pending_count,
-                           sold_count=len(sold_items))
+                            sold_count=sum(i.quantity for i in sold_items))
 
 
 @seller_bp.route('/products')
@@ -43,33 +49,16 @@ def products():
 @login_required
 @seller_required
 def add_product():
-    categories = Category.query.all()
+    categories = Category.query.order_by(Category.parent_id, Category.name).all()
     if request.method == 'POST':
-        name = request.form.get('name', '').strip()
-        description = request.form.get('description', '').strip()
-        price = request.form.get('price', type=float)
-        old_price = request.form.get('old_price', type=float)
-        brand = request.form.get('brand', '').strip()
-        sku = request.form.get('sku', '').strip()
-        category_id = request.form.get('category_id', type=int)
-        stock = request.form.get('stock', 0, type=int)
-        image_url = request.form.get('image_url', '').strip()
-        color_options = request.form.get('color_options', '').strip()
-        size_options = request.form.get('size_options', '').strip()
-
-        if not name or not price or not category_id:
-            flash('Заполните обязательные поля: название, цена, категория', 'danger')
-            return render_template('seller/add_product.html', categories=categories)
-
-        product = Product(
-            name=name, description=description, price=price,
-            old_price=old_price if old_price else None,
-            brand=brand, sku=sku, category_id=category_id,
-            seller_id=current_user.id, stock=stock,
-            image_url=image_url or 'https://placehold.co/400x400/cb11ab/ffffff?text=No+Image',
-            color_options=color_options, size_options=size_options,
-            is_active=True, is_approved=False
-        )
+        values, errors = parse_product_form(request.form)
+        if errors:
+            flash(' '.join(errors), 'danger')
+            return render_template('seller/add_product.html', categories=categories), 400
+        product = Product(seller_id=current_user.id, is_active=True, is_approved=False)
+        apply_product_form(product, values)
+        if not product.image_url:
+            product.image_url = '/static/images/product-placeholder.svg'
         db.session.add(product)
         db.session.commit()
         flash('Товар отправлен на модерацию', 'success')
@@ -82,25 +71,21 @@ def add_product():
 @seller_required
 def edit_product(product_id):
     product = Product.query.filter_by(id=product_id, seller_id=current_user.id).first_or_404()
-    categories = Category.query.all()
+    categories = Category.query.order_by(Category.parent_id, Category.name).all()
     if request.method == 'POST':
-        product.name = request.form.get('name', product.name).strip()
-        product.description = request.form.get('description', '').strip()
-        product.price = request.form.get('price', product.price, type=float)
-        old_price = request.form.get('old_price', type=float)
-        product.old_price = old_price if old_price else None
-        product.brand = request.form.get('brand', '').strip()
-        product.sku = request.form.get('sku', '').strip()
-        product.category_id = request.form.get('category_id', product.category_id, type=int)
-        product.stock = request.form.get('stock', 0, type=int)
-        image_url = request.form.get('image_url', '').strip()
-        product.color_options = request.form.get('color_options', '').strip()
-        product.size_options = request.form.get('size_options', '').strip()
-        if image_url:
-            product.image_url = image_url
-        product.is_approved = False
+        values, errors = parse_product_form(request.form, current=product)
+        if errors:
+            flash(' '.join(errors), 'danger')
+            return render_template('seller/edit_product.html', product=product, categories=categories), 400
+        changed = any(getattr(product, field) != value for field, value in values.items())
+        if changed:
+            apply_product_form(product, values)
+            product.is_approved = False
         db.session.commit()
-        flash('Товар обновлён и отправлен на повторную модерацию', 'success')
+        flash(
+            'Товар обновлён и отправлен на повторную модерацию' if changed else 'Изменений нет',
+            'success' if changed else 'info',
+        )
         return redirect(url_for('seller.products'))
     return render_template('seller/edit_product.html', product=product, categories=categories)
 
@@ -123,4 +108,5 @@ def become_seller():
         current_user.role = 'seller'
         db.session.commit()
         flash('Поздравляем! Теперь вы можете продавать товары.', 'success')
-    return redirect(url_for('seller.dashboard'))
+        return redirect(url_for('seller.dashboard'))
+    return redirect(url_for('seller.dashboard' if current_user.is_seller else 'main.index'))

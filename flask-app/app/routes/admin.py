@@ -2,6 +2,8 @@ from flask import Blueprint, render_template, redirect, url_for, request, flash,
 from flask_login import login_required, current_user
 from functools import wraps
 from ..models import db, User, Product, Category, Order, Review
+from ..services.orders import ORDER_TRANSITIONS, transition_order
+from ..services.product_input import apply_product_form, parse_product_form
 
 admin_bp = Blueprint('admin', __name__)
 
@@ -59,6 +61,11 @@ def change_role(user_id):
         return redirect(url_for('admin.users'))
     new_role = request.form.get('role')
     if new_role in ('user', 'seller', 'moderator', 'admin'):
+        if current_user.role != 'admin' and (
+            new_role == 'admin' or user.role == 'admin'
+        ):
+            flash('Только администратор может управлять ролью администратора', 'danger')
+            return redirect(url_for('admin.users'))
         user.role = new_role
         db.session.commit()
         flash(f'Роль пользователя {user.username} изменена на {new_role}', 'success')
@@ -129,9 +136,10 @@ def reject_product(product_id):
 @admin_required
 def delete_product(product_id):
     product = db.get_or_404(Product, product_id)
-    db.session.delete(product)
+    # Keep order-history foreign keys and snapshots intact.
+    product.is_active = False
     db.session.commit()
-    flash('Товар удалён', 'danger')
+    flash('Товар снят с продажи; история заказов сохранена', 'info')
     return redirect(url_for('admin.products'))
 
 
@@ -142,19 +150,11 @@ def edit_product(product_id):
     product = db.get_or_404(Product, product_id)
     categories = Category.query.order_by(Category.parent_id, Category.name).all()
     if request.method == 'POST':
-        product.name = request.form.get('name', product.name).strip()
-        product.description = request.form.get('description', '').strip()
-        product.price = request.form.get('price', product.price, type=float)
-        product.old_price = request.form.get('old_price', type=float) or None
-        product.brand = request.form.get('brand', '').strip()
-        product.sku = request.form.get('sku', '').strip()
-        product.category_id = request.form.get('category_id', product.category_id, type=int)
-        product.stock = request.form.get('stock', product.stock, type=int)
-        product.color_options = request.form.get('color_options', '').strip()
-        product.size_options = request.form.get('size_options', '').strip()
-        image_url = request.form.get('image_url', '').strip()
-        if image_url:
-            product.image_url = image_url
+        values, errors = parse_product_form(request.form, current=product)
+        if errors:
+            flash(' '.join(errors), 'danger')
+            return render_template('admin/edit_product.html', product=product, categories=categories), 400
+        apply_product_form(product, values)
         db.session.commit()
         flash(f'Товар "{product.name}" обновлён', 'success')
         return redirect(url_for('admin.products'))
@@ -180,11 +180,11 @@ def orders():
 def update_order_status(order_id):
     order = db.get_or_404(Order, order_id)
     new_status = request.form.get('status')
-    valid = ('pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled')
-    if new_status in valid:
-        order.status = new_status
+    if transition_order(order, new_status):
         db.session.commit()
         flash(f'Статус заказа #{order.id} обновлён', 'success')
+    else:
+        flash('Недопустимый переход статуса заказа', 'warning')
     return redirect(url_for('admin.orders'))
 
 
@@ -202,14 +202,20 @@ def categories():
 @admin_required
 def add_category():
     name = request.form.get('name', '').strip()
-    slug = request.form.get('slug', '').strip()
+    slug = request.form.get('slug', '').strip().lower()
     icon = request.form.get('icon', '📦').strip()
     parent_id = request.form.get('parent_id', type=int)
-    if not name or not slug:
-        flash('Укажите название и slug', 'danger')
+    if not name or len(name) > 100 or not slug or len(slug) > 100:
+        flash('Укажите название (до 100 символов) и корректный slug', 'danger')
+        return redirect(url_for('admin.categories'))
+    if not all(part and part.isascii() and part.isalnum() for part in slug.split('-')):
+        flash('Slug может содержать только латинские буквы, цифры и дефисы', 'danger')
         return redirect(url_for('admin.categories'))
     if Category.query.filter_by(slug=slug).first():
         flash('Такой slug уже существует', 'danger')
+        return redirect(url_for('admin.categories'))
+    if parent_id and not db.session.get(Category, parent_id):
+        flash('Выбранная родительская категория не найдена', 'danger')
         return redirect(url_for('admin.categories'))
     cat = Category(name=name, slug=slug, icon=icon, parent_id=parent_id or None)
     db.session.add(cat)
@@ -246,7 +252,12 @@ def reviews():
 @admin_required
 def delete_review(review_id):
     review = db.get_or_404(Review, review_id)
+    product = review.product
     db.session.delete(review)
+    db.session.flush()
+    remaining = Review.query.filter_by(product_id=product.id).all()
+    product.review_count = len(remaining)
+    product.rating = round(sum(item.rating for item in remaining) / len(remaining), 1) if remaining else 0
     db.session.commit()
     flash('Отзыв удалён', 'info')
     return redirect(url_for('admin.reviews'))

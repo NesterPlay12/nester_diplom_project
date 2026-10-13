@@ -1,5 +1,6 @@
 from flask import Blueprint, render_template, request, redirect, url_for
 from ..models import db, Product, Category
+from ..services.catalog import filter_by_price, sort_products
 
 main_bp = Blueprint('main', __name__)
 
@@ -21,21 +22,13 @@ def category(slug):
     max_price = request.args.get('max_price', type=float)
 
     child_ids = [c.id for c in cat.children] + [cat.id]
-    query = Product.query.filter(Product.category_id.in_(child_ids), Product.is_active == True, Product.is_approved == True)
-
-    if min_price:
-        query = query.filter(Product.price >= min_price)
-    if max_price:
-        query = query.filter(Product.price <= max_price)
-
-    if sort == 'price_asc':
-        query = query.order_by(Product.price.asc())
-    elif sort == 'price_desc':
-        query = query.order_by(Product.price.desc())
-    elif sort == 'new':
-        query = query.order_by(Product.created_at.desc())
-    else:
-        query = query.order_by(Product.rating.desc())
+    query = Product.query.filter(
+        Product.category_id.in_(child_ids),
+        Product.is_active.is_(True),
+        Product.is_approved.is_(True),
+    )
+    query = filter_by_price(query, min_price, max_price)
+    query = sort_products(query, sort)
 
     pagination = query.paginate(page=page, per_page=20, error_out=False)
     all_categories = Category.query.filter_by(parent_id=None).all()
@@ -46,14 +39,14 @@ def category(slug):
 
 @main_bp.route('/search')
 def search():
-    q = request.args.get('q', '').strip()
+    q = request.args.get('q', '').strip()[:120]
     page = request.args.get('page', 1, type=int)
     sort = request.args.get('sort', 'popular')
     cat_id = request.args.get('category', type=int)
     min_price = request.args.get('min_price', type=float)
     max_price = request.args.get('max_price', type=float)
 
-    query = Product.query.filter(Product.is_active == True, Product.is_approved == True)
+    query = Product.query.filter(Product.is_active.is_(True), Product.is_approved.is_(True))
 
     if q:
         query = query.filter(
@@ -65,19 +58,8 @@ def search():
         )
     if cat_id:
         query = query.filter(Product.category_id == cat_id)
-    if min_price:
-        query = query.filter(Product.price >= min_price)
-    if max_price:
-        query = query.filter(Product.price <= max_price)
-
-    if sort == 'price_asc':
-        query = query.order_by(Product.price.asc())
-    elif sort == 'price_desc':
-        query = query.order_by(Product.price.desc())
-    elif sort == 'new':
-        query = query.order_by(Product.created_at.desc())
-    else:
-        query = query.order_by(Product.rating.desc())
+    query = filter_by_price(query, min_price, max_price)
+    query = sort_products(query, sort)
 
     pagination = query.paginate(page=page, per_page=20, error_out=False)
     categories = Category.query.filter_by(parent_id=None).all()
@@ -92,9 +74,9 @@ def product_detail(product_id):
     related = Product.query.filter(
         Product.category_id == product.category_id,
         Product.id != product.id,
-        Product.is_active == True,
-        Product.is_approved == True
-    ).limit(8).all()
+        Product.is_active.is_(True),
+        Product.is_approved.is_(True)
+    ).order_by(Product.rating.desc(), Product.id.desc()).limit(8).all()
     from ..models import Review
     reviews = Review.query.filter_by(product_id=product_id).order_by(Review.created_at.desc()).all()
     return render_template('product.html', product=product, related=related, reviews=reviews)

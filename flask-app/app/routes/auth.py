@@ -3,10 +3,21 @@ from urllib.parse import urlparse
 from flask import Blueprint, render_template, redirect, url_for, request, flash, session, current_app
 from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash
+from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 from ..models import db, User
 from ..oauth import oauth
 
 auth_bp = Blueprint('auth', __name__)
+
+
+def _safe_local_redirect(target):
+    if not target or not target.startswith('/') or target.startswith('//') or '\\' in target:
+        return None
+    parsed = urlparse(target)
+    if parsed.scheme or parsed.netloc:
+        return None
+    return target
 
 
 # ─────────────────────────── Обычный вход ───────────────────────────
@@ -16,7 +27,7 @@ def login():
     if current_user.is_authenticated:
         return redirect(url_for('main.index'))
     if request.method == 'POST':
-        email = request.form.get('email', '').strip()
+        email = request.form.get('email', '').strip().lower()
         password = request.form.get('password', '')
         remember = request.form.get('remember') == 'on'
         user = User.query.filter_by(email=email).first()
@@ -25,7 +36,7 @@ def login():
                 flash('Ваш аккаунт заблокирован. Обратитесь в поддержку.', 'danger')
                 return redirect(url_for('auth.login'))
             login_user(user, remember=remember)
-            next_page = request.args.get('next')
+            next_page = _safe_local_redirect(request.args.get('next', ''))
             flash(f'Добро пожаловать, {user.username}!', 'success')
             return redirect(next_page or url_for('main.index'))
         flash('Неверный email или пароль', 'danger')
@@ -38,7 +49,7 @@ def register():
         return redirect(url_for('main.index'))
     if request.method == 'POST':
         username = request.form.get('username', '').strip()
-        email = request.form.get('email', '').strip()
+        email = request.form.get('email', '').strip().lower()
         password = request.form.get('password', '')
         confirm = request.form.get('confirm_password', '')
         phone = request.form.get('phone', '').strip()
@@ -46,27 +57,44 @@ def register():
         if not username or not email or not password:
             flash('Заполните все обязательные поля', 'danger')
             return render_template('auth/register.html')
+        if len(username) < 3 or len(username) > 80:
+            flash('Имя пользователя должно содержать от 3 до 80 символов', 'danger')
+            return render_template('auth/register.html')
+        if len(email) > 120 or '@' not in email or '.' not in email.rsplit('@', 1)[-1]:
+            flash('Укажите корректный email', 'danger')
+            return render_template('auth/register.html')
+        if len(password) < 8:
+            flash('Пароль должен содержать минимум 8 символов', 'danger')
+            return render_template('auth/register.html')
+        if len(phone) > 20:
+            flash('Телефон слишком длинный', 'danger')
+            return render_template('auth/register.html')
         if password != confirm:
             flash('Пароли не совпадают', 'danger')
             return render_template('auth/register.html')
-        if User.query.filter_by(email=email).first():
+        if User.query.filter(func.lower(User.email) == email).first():
             flash('Пользователь с таким email уже существует', 'danger')
             return render_template('auth/register.html')
-        if User.query.filter_by(username=username).first():
+        if User.query.filter(func.lower(User.username) == username.lower()).first():
             flash('Это имя пользователя уже занято', 'danger')
             return render_template('auth/register.html')
 
         user = User(username=username, email=email, phone=phone)
         user.set_password(password)
         db.session.add(user)
-        db.session.commit()
+        try:
+            db.session.commit()
+        except IntegrityError:
+            db.session.rollback()
+            flash('Аккаунт с таким email или именем пользователя уже существует', 'danger')
+            return render_template('auth/register.html')
         login_user(user)
         flash('Регистрация прошла успешно! Добро пожаловать!', 'success')
         return redirect(url_for('main.index'))
     return render_template('auth/register.html')
 
 
-@auth_bp.route('/logout')
+@auth_bp.route('/logout', methods=['POST'])
 @login_required
 def logout():
     logout_user()
@@ -112,11 +140,14 @@ def google_callback():
     if hasattr(user_info, 'json'):
         user_info = user_info.json()
     google_id = user_info.get('sub')
-    email = user_info.get('email', '').strip()
+    email = user_info.get('email', '').strip().lower()
     name = user_info.get('name', '') or email.split('@')[0]
     avatar = user_info.get('picture', '')
 
-    if not google_id or not email:
+    email_verified = user_info.get('email_verified') is True or str(
+        user_info.get('email_verified', '')
+    ).lower() == 'true'
+    if not google_id or not email or not email_verified:
         flash('Не удалось получить данные от Google.', 'danger')
         return redirect(url_for('auth.login'))
 
@@ -125,7 +156,7 @@ def google_callback():
 
     if not user:
         # 2. Ищем по email — привязываем Google к существующему аккаунту
-        user = User.query.filter_by(email=email).first()
+        user = User.query.filter(func.lower(User.email) == email).first()
         if user:
             user.google_id = google_id
             if avatar and not user.avatar_url:
@@ -161,7 +192,4 @@ def google_callback():
     flash(f'Добро пожаловать, {user.username}!', 'success')
 
     next_page = session.pop('oauth_next', '')
-    parsed = urlparse(next_page)
-    if parsed.scheme or parsed.netloc or not next_page.startswith('/'):
-        next_page = ''
-    return redirect(next_page or url_for('main.index'))
+    return redirect(_safe_local_redirect(next_page) or url_for('main.index'))
