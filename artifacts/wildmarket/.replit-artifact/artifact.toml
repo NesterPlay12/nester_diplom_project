@@ -12,7 +12,7 @@ paths = ["/"]
 localPort = 23111
 
 [services.development]
-run = "bash -lc 'if [ -f flask-app/start.sh ]; then exec bash flask-app/start.sh; else exec bash ../../flask-app/start.sh; fi'"
+run = "APP_ENV=development bash -lc 'if [ -f flask-app/start.sh ]; then exec bash flask-app/start.sh; else exec bash ../../flask-app/start.sh; fi'"
 
 [services.production]
 

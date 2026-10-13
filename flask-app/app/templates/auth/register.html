@@ -28,6 +28,7 @@
             {% endif %}
 
             <form method="post">
+                {% include '_csrf_field.html' %}
                 <div class="mb-3">
                     <label class="form-label fw-semibold">Имя пользователя <span class="text-danger">*</span></label>
                     <input type="text" class="form-control" name="username" required autofocus
@@ -44,11 +45,11 @@
                 <div class="row g-2 mb-3">
                     <div class="col-6">
                         <label class="form-label fw-semibold">Пароль <span class="text-danger">*</span></label>
-                        <input type="password" class="form-control" name="password" required placeholder="••••••••" minlength="6">
+                        <input type="password" class="form-control" name="password" required placeholder="••••••••" minlength="8">
                     </div>
                     <div class="col-6">
                         <label class="form-label fw-semibold">Повторить <span class="text-danger">*</span></label>
-                        <input type="password" class="form-control" name="confirm_password" required placeholder="••••••••">
+                        <input type="password" class="form-control" name="confirm_password" required placeholder="••••••••" minlength="8">
                     </div>
                 </div>
                 <button type="submit" class="btn btn-wb w-100 btn-lg fw-bold">Зарегистрироваться</button>

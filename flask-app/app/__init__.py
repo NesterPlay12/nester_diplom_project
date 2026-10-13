@@ -1,15 +1,22 @@
+import fcntl
+import os
+import threading
 from flask import Flask, jsonify, request
 from flask_login import LoginManager
 from flask_wtf.csrf import CSRFError, CSRFProtect
 from werkzeug.middleware.proxy_fix import ProxyFix
-from sqlalchemy import inspect, text
+from sqlalchemy import event, inspect, text
+from datetime import datetime, timezone
+from contextlib import contextmanager
 from .models import db, User
 from .config import Config
 from .oauth import init_oauth, oauth
 
 
 login_manager = LoginManager()
+login_manager.session_protection = 'strong'
 csrf = CSRFProtect()
+_schema_init_lock = threading.RLock()
 
 
 def create_app(config_overrides=None):
@@ -19,11 +26,25 @@ def create_app(config_overrides=None):
         app.config.update(config_overrides)
     if not app.config.get('SECRET_KEY'):
         raise RuntimeError('SESSION_SECRET must be configured outside development.')
+    if (
+        app.config.get('ENVIRONMENT') in ('production', 'staging')
+        and app.config.get('SQLALCHEMY_DATABASE_URI', '').lower().startswith('sqlite')
+    ):
+        raise RuntimeError(
+            'Production requires a persistent external database; SQLite is only for local development.'
+        )
 
     # Корректно обрабатываем HTTPS-заголовки от Replit/nginx-прокси
     app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1, x_prefix=1)
 
     db.init_app(app)
+    with app.app_context():
+        if db.engine.dialect.name == 'sqlite':
+            @event.listens_for(db.engine, 'connect')
+            def enable_sqlite_foreign_keys(connection, _record):
+                cursor = connection.cursor()
+                cursor.execute('PRAGMA foreign_keys=ON')
+                cursor.close()
     csrf.init_app(app)
     login_manager.init_app(app)
     login_manager.login_view = 'auth.login'
@@ -51,16 +72,20 @@ def create_app(config_overrides=None):
     app.register_blueprint(delivery_bp)
 
     with app.app_context():
-        db.create_all()
-        _run_migrations()
+        with _database_initialization_lock():
+            db.create_all()
+            _run_migrations()
 
     # Передаём флаг Google OAuth во все шаблоны
     @app.context_processor
     def inject_google_oauth():
         return {
-            'google_oauth_enabled': bool(app.config.get('GOOGLE_CLIENT_ID')),
+            'google_oauth_enabled': bool(
+                app.config.get('GOOGLE_CLIENT_ID') and app.config.get('GOOGLE_CLIENT_SECRET')
+            ),
             'yandex_maps_api_key': app.config.get('YANDEX_MAPS_API_KEY', ''),
             'app_base_path': request.script_root.rstrip('/'),
+            'current_year': datetime.now(timezone.utc).year,
         }
 
     @app.after_request
@@ -82,13 +107,59 @@ def create_app(config_overrides=None):
     return app
 
 
+@contextmanager
+def _database_initialization_lock():
+    """Serialize schema setup across local workflows and production workers."""
+    engine = db.engine
+    with _schema_init_lock:
+        if engine.dialect.name == 'sqlite':
+            database_path = engine.url.database
+            if not database_path or database_path == ':memory:':
+                yield
+                return
+            lock_path = os.path.abspath(database_path) + '.schema.lock'
+            os.makedirs(os.path.dirname(lock_path), exist_ok=True)
+            with open(lock_path, 'a', encoding='utf-8') as lock_file:
+                fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+                try:
+                    yield
+                finally:
+                    fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+            return
+
+        with engine.connect() as connection:
+            dialect = engine.dialect.name
+            if dialect == 'postgresql':
+                connection.execute(text('SELECT pg_advisory_lock(740345611)'))
+                connection.commit()
+            elif dialect == 'mysql':
+                acquired = connection.execute(
+                    text("SELECT GET_LOCK('wildmarket_schema_init', 30)")
+                ).scalar()
+                connection.commit()
+                if acquired != 1:
+                    raise RuntimeError('Could not acquire the database schema lock.')
+            try:
+                yield
+            finally:
+                if dialect == 'postgresql':
+                    connection.execute(text('SELECT pg_advisory_unlock(740345611)'))
+                    connection.commit()
+                elif dialect == 'mysql':
+                    connection.execute(text("SELECT RELEASE_LOCK('wildmarket_schema_init')"))
+                    connection.commit()
+
+
 def _run_migrations():
     """Apply small, idempotent schema upgrades while preserving existing rows."""
     engine = db.engine
     inspector = inspect(engine)
     tables = set(inspector.get_table_names())
     migrations = {
-        'users': {'google_id': 'VARCHAR(100)'},
+        'users': {
+            'google_id': 'VARCHAR(100)',
+            'has_local_password': 'BOOLEAN NOT NULL DEFAULT TRUE',
+        },
         'products': {
             'sku': 'VARCHAR(50)',
             'color_options': "TEXT DEFAULT ''",
@@ -101,6 +172,9 @@ def _run_migrations():
         'order_items': {
             'selected_color': 'VARCHAR(80)',
             'selected_size': 'VARCHAR(40)',
+        },
+        'orders': {
+            'payment_method': "VARCHAR(30) NOT NULL DEFAULT 'cash_on_delivery'",
         },
     }
     with engine.begin() as conn:
@@ -115,6 +189,9 @@ def _run_migrations():
                     )
 
         if 'products' in tables and 'categories' in tables:
+            conn.execute(text(
+                'UPDATE products SET stock = 0 WHERE stock IS NULL OR stock < 0'
+            ))
             # Fill legacy catalog defaults only when sellers have not supplied variants.
             for statement in (
                 """UPDATE products SET color_options = 'Чёрный, Белый, Синий'
@@ -134,6 +211,11 @@ def _run_migrations():
                                          WHERE slug IN ('smartphones','laptops'))""",
             ):
                 conn.execute(text(statement))
+
+        if 'cart_items' in tables:
+            conn.execute(text(
+                'UPDATE cart_items SET quantity = 1 WHERE quantity IS NULL OR quantity < 1'
+            ))
 
     if 'cart_items' in tables:
         _migrate_cart_variant_constraint(engine)
@@ -157,7 +239,7 @@ def _migrate_cart_variant_constraint(engine):
                     id INTEGER NOT NULL PRIMARY KEY,
                     user_id INTEGER NOT NULL,
                     product_id INTEGER NOT NULL,
-                    quantity INTEGER DEFAULT 1,
+                    quantity INTEGER NOT NULL DEFAULT 1,
                     created_at DATETIME,
                     selected_color VARCHAR(80) NOT NULL DEFAULT '',
                     selected_size VARCHAR(40) NOT NULL DEFAULT '',
@@ -170,7 +252,7 @@ def _migrate_cart_variant_constraint(engine):
             conn.exec_driver_sql("""
                 INSERT INTO cart_items__new
                     (id, user_id, product_id, quantity, created_at, selected_color, selected_size)
-                SELECT id, user_id, product_id, quantity, created_at,
+                SELECT id, user_id, product_id, COALESCE(quantity, 1), created_at,
                        COALESCE(selected_color, ''), COALESCE(selected_size, '')
                 FROM cart_items
             """)

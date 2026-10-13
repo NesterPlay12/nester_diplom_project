@@ -13,6 +13,7 @@
     <div class="col-lg-8">
         <div class="bg-white rounded-3 p-4 shadow-sm">
             <form method="post">
+                {% include '_csrf_field.html' %}
                 <div class="mb-3">
                     <label class="form-label fw-semibold">Название <span class="text-danger">*</span></label>
                     <input type="text" class="form-control" name="name" required value="{{ product.name }}">
@@ -34,7 +35,7 @@
                     </div>
                     <div class="col-md-4">
                         <label class="form-label fw-semibold">Остаток (шт.)</label>
-                        <input type="number" class="form-control" name="stock" value="{{ product.stock }}" min="0">
+                        <input type="number" class="form-control" name="stock" value="{{ product.available_stock }}" min="0">
                     </div>
                 </div>
                 <div class="row g-3 mb-3">

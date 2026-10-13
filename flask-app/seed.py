@@ -1,37 +1,47 @@
-"""
-Заполнение базы данных тестовыми данными.
-Запуск: cd flask-app && python seed.py
-"""
+"""Create a local-only demo catalog. Never use this in a production environment."""
+import os
+import secrets
+import sys
+
+if '--demo' not in sys.argv[1:]:
+    raise SystemExit('This command only seeds local demo data. Run: python seed.py --demo')
+
+if os.environ.get('APP_ENV', os.environ.get('FLASK_ENV', 'development')).lower() in (
+    'production', 'staging',
+):
+    raise SystemExit('Demo data seeding is disabled in production and staging.')
+
 from app import create_app
 from app.models import db, User, Category, Product
 
+demo_passwords = {key: secrets.token_urlsafe(18) for key in ('admin', 'moderator', 'seller1', 'seller2', 'buyer')}
 app = create_app()
 
 with app.app_context():
     db.create_all()
 
     if User.query.count() > 0:
-        print("База уже заполнена, пропускаем.")
-        exit()
+        print("Database already has users; no changes were made.")
+        raise SystemExit(0)
 
     admin = User(username='admin', email='admin@wildmarket.ru', role='admin', phone='+7-800-555-00-00', is_active=True)
-    admin.set_password('admin123')
+    admin.set_password(demo_passwords['admin'])
     db.session.add(admin)
 
     moderator = User(username='moderator', email='moder@wildmarket.ru', role='moderator', is_active=True)
-    moderator.set_password('moder123')
+    moderator.set_password(demo_passwords['moderator'])
     db.session.add(moderator)
 
     seller1 = User(username='seller_tech', email='seller1@wildmarket.ru', role='seller', is_active=True)
-    seller1.set_password('seller123')
+    seller1.set_password(demo_passwords['seller1'])
     db.session.add(seller1)
 
     seller2 = User(username='seller_fashion', email='seller2@wildmarket.ru', role='seller', is_active=True)
-    seller2.set_password('seller123')
+    seller2.set_password(demo_passwords['seller2'])
     db.session.add(seller2)
 
     buyer = User(username='ivan_petrov', email='ivan@example.ru', role='user', phone='+7-999-123-45-67', is_active=True)
-    buyer.set_password('user123')
+    buyer.set_password(demo_passwords['buyer'])
     db.session.add(buyer)
 
     db.session.flush()
@@ -100,13 +110,12 @@ with app.app_context():
         db.session.add(p)
 
     db.session.commit()
-    print("✅ База данных заполнена:")
-    print(f"   Пользователи: {User.query.count()}")
-    print(f"   Категории: {Category.query.count()}")
-    print(f"   Товары: {Product.query.count()}")
-    print()
-    print("Тестовые аккаунты:")
-    print("  Админ:     admin@wildmarket.ru / admin123")
-    print("  Модератор: moder@wildmarket.ru / moder123")
-    print("  Продавец:  seller1@wildmarket.ru / seller123")
-    print("  Покупатель: ivan@example.ru / user123")
+    print("Demo data created for local use only.")
+    print("Login credentials for this demo run:")
+    for role, email, key in (
+        ('Admin', 'admin@wildmarket.ru', 'admin'),
+        ('Moderator', 'moder@wildmarket.ru', 'moderator'),
+        ('Seller', 'seller1@wildmarket.ru', 'seller1'),
+        ('Buyer', 'ivan@example.ru', 'buyer'),
+    ):
+        print(f"  {role}: {email} / {demo_passwords[key]}")

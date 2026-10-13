@@ -1,5 +1,6 @@
 """Server-side access to official carrier pickup-point catalogs."""
 import logging
+import math
 import os
 import threading
 import time
@@ -12,6 +13,10 @@ logger = logging.getLogger(__name__)
 
 _CDEK_URL = 'https://api.cdek.ru/v2'
 _token_cache = {'token': None, 'expires_at': 0.0, 'credentials': None, 'lock': threading.Lock()}
+_points_cache = {}
+_points_cache_lock = threading.Lock()
+_request_history = {}
+_request_history_lock = threading.Lock()
 
 _CITY_CENTERS = {
     'москва': (55.7558, 37.6176),
@@ -127,19 +132,39 @@ def _fetch_cdek(city):
             if not isinstance(raw, list):
                 return [], 'API СДЭК вернул ответ неизвестного формата.'
             for point in raw:
+                if not isinstance(point, dict):
+                    continue
                 location = point.get('location') or {}
-                lat, lng = location.get('latitude'), location.get('longitude')
-                if lat is None or lng is None or not point.get('code'):
+                if not isinstance(location, dict):
+                    continue
+                try:
+                    lat = float(location.get('latitude'))
+                    lng = float(location.get('longitude'))
+                except (TypeError, ValueError):
+                    continue
+                point_code = point.get('code')
+                name = point.get('name')
+                address = location.get('address') or location.get('address_full')
+                if (
+                    not point_code
+                    or not isinstance(name, str) or not name.strip()
+                    or not isinstance(address, str) or not address.strip()
+                    or not math.isfinite(lat) or not math.isfinite(lng)
+                    or not -90 <= lat <= 90 or not -180 <= lng <= 180
+                ):
                     continue
                 phones = point.get('phones') or []
+                first_phone = phones[0] if isinstance(phones, list) and phones else {}
+                if not isinstance(first_phone, dict):
+                    first_phone = {}
                 result.append({
-                    'id': str(point['code']),
-                    'name': point.get('name') or f"Пункт СДЭК {point['code']}",
-                    'address': location.get('address') or '',
-                    'lat': float(lat),
-                    'lng': float(lng),
-                    'work_time': point.get('work_time') or '',
-                    'phone': (phones[0].get('number', '') if phones else ''),
+                    'id': str(point_code),
+                    'name': name.strip(),
+                    'address': address.strip(),
+                    'lat': lat,
+                    'lng': lng,
+                    'work_time': str(point.get('work_time') or ''),
+                    'phone': str(first_phone.get('number', '') or ''),
                     'provider': 'cdek',
                 })
             if len(raw) < 1000:
@@ -154,6 +179,52 @@ def _fetch_cdek(city):
     return result, None if result else 'В этом городе нет доступных пунктов СДЭК.'
 
 
+def _get_cdek_points(city):
+    key = city.casefold().strip()
+    now = time.time()
+    with _points_cache_lock:
+        cached = _points_cache.get(key)
+        if cached and cached['expires_at'] > now:
+            return cached['points'], cached['reason']
+    points, reason = _fetch_cdek(city)
+    with _points_cache_lock:
+        _points_cache.pop(key, None)
+        while len(_points_cache) >= 64:
+            _points_cache.pop(next(iter(_points_cache)))
+        _points_cache[key] = {
+            'points': points,
+            'reason': reason,
+            'expires_at': now + (600 if not reason else 60),
+        }
+    return points, reason
+
+
+def _request_is_within_limit(client_address):
+    """Limit public catalog lookups to 30 requests per client per minute."""
+    now = time.monotonic()
+    key = client_address or 'unknown'
+    with _request_history_lock:
+        recent = [stamp for stamp in _request_history.get(key, []) if now - stamp < 60]
+        if len(recent) >= 30:
+            _request_history[key] = recent
+            return False
+        recent.append(now)
+        _request_history[key] = recent
+        if len(_request_history) > 4096:
+            for address, stamps in list(_request_history.items()):
+                if not stamps or now - stamps[-1] >= 60:
+                    _request_history.pop(address, None)
+        return True
+
+
+def verify_pickup_point(provider, point_id, city):
+    """Validate submitted pickup details against the server-fetched official catalog."""
+    if provider != 'cdek' or not point_id or not city:
+        return None
+    points, _reason = _get_cdek_points(city)
+    return next((point for point in points if point['id'] == str(point_id)), None)
+
+
 def _fetch_pochta(city):
     """No public official catalog credentials are configured for Russian Post."""
     if not os.environ.get('POCHTA_API_TOKEN', '').strip():
@@ -165,6 +236,11 @@ def _fetch_pochta(city):
 
 @delivery_bp.route('/delivery/pvz')
 def get_pvz():
+    if not _request_is_within_limit(request.remote_addr):
+        response = jsonify({'error': 'Слишком много запросов. Повторите через минуту.'})
+        response.status_code = 429
+        response.headers['Retry-After'] = '60'
+        return response
     city = request.args.get('city', '').strip()
     provider = request.args.get('provider', 'all')
     if not city:
@@ -177,7 +253,7 @@ def get_pvz():
     points = []
     unavailable = {}
     if provider in ('all', 'cdek'):
-        result, reason = _fetch_cdek(city)
+        result, reason = _get_cdek_points(city)
         points.extend(result)
         if reason:
             unavailable['cdek'] = reason
@@ -196,11 +272,11 @@ def get_pvz():
             sum(point['lng'] for point in points) / len(points),
         )
     else:
-        center = _CITY_CENTERS['москва']
+        center = None
 
     return jsonify({
         'pvz': points,
-        'center': list(center),
+        'center': list(center) if center else None,
         'city': city,
         'unavailable': unavailable,
     })

@@ -1,16 +1,33 @@
 document.addEventListener('DOMContentLoaded', function () {
+    var appBasePath = document.querySelector('meta[name="app-base-path"]')?.content || '';
+    var csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+    var appUrl = function (path) { return appBasePath + path; };
+    var postJson = function (path, body) {
+        return fetch(appUrl(path), {
+            method: 'POST',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRFToken': csrfToken
+            },
+            body: body
+        }).then(function (response) {
+            if (response.redirected) {
+                window.location.href = response.url;
+                throw new Error('Требуется вход в аккаунт');
+            }
+            return response.json().then(function (data) {
+                if (!response.ok) throw new Error(data.message || 'Не удалось выполнить запрос');
+                return data;
+            });
+        });
+    };
 
     document.querySelectorAll('.fav-btn').forEach(function (btn) {
         btn.addEventListener('click', function (e) {
             e.preventDefault();
             e.stopPropagation();
             var productId = btn.dataset.productId;
-            fetch('/favorite/toggle/' + productId, {
-                method: 'POST',
-                headers: { 'X-Requested-With': 'XMLHttpRequest' }
-            }).then(function (r) {
-                return r.json();
-            }).then(function (data) {
+            postJson('/favorite/toggle/' + productId).then(function (data) {
                 var icon = btn.querySelector('i');
                 if (data.status === 'added') {
                     icon.className = 'bi bi-heart-fill';
@@ -19,8 +36,9 @@ document.addEventListener('DOMContentLoaded', function () {
                     icon.className = 'bi bi-heart';
                     btn.classList.remove('active');
                 }
-            }).catch(function () {
-                window.location.href = '/auth/login';
+            }).catch(function (error) {
+                if (!error.message.includes('вход в аккаунт')) alert(error.message);
+                if (error.message.includes('вход в аккаунт')) window.location.href = appUrl('/auth/login');
             });
         });
     });
@@ -31,13 +49,7 @@ document.addEventListener('DOMContentLoaded', function () {
             var productId = btn.dataset.productId;
             var form = new FormData();
             form.append('quantity', '1');
-            fetch('/cart/add/' + productId, {
-                method: 'POST',
-                headers: { 'X-Requested-With': 'XMLHttpRequest' },
-                body: form
-            }).then(function (r) {
-                return r.json();
-            }).then(function (data) {
+            postJson('/cart/add/' + productId, form).then(function (data) {
                 if (data.status === 'ok') {
                     var badge = document.querySelector('.cart-badge');
                     if (badge) badge.textContent = data.count;
@@ -50,8 +62,9 @@ document.addEventListener('DOMContentLoaded', function () {
                         btn.classList.add('btn-wb');
                     }, 2000);
                 }
-            }).catch(function () {
-                window.location.href = '/auth/login';
+            }).catch(function (error) {
+                if (!error.message.includes('вход в аккаунт')) alert(error.message);
+                if (error.message.includes('вход в аккаунт')) window.location.href = appUrl('/auth/login');
             });
         });
     });

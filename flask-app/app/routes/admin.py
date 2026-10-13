@@ -1,6 +1,7 @@
 from flask import Blueprint, render_template, redirect, url_for, request, flash, jsonify
 from flask_login import login_required, current_user
 from functools import wraps
+from sqlalchemy.exc import IntegrityError
 from ..models import db, User, Product, Category, Order, Review
 from ..services.orders import ORDER_TRANSITIONS, transition_order
 from ..services.product_input import apply_product_form, parse_product_form
@@ -28,7 +29,7 @@ def dashboard():
         'orders': Order.query.count(),
         'categories': Category.query.count(),
         'pending_products': Product.query.filter_by(is_approved=False, is_active=True).count(),
-        'revenue': db.session.query(db.func.sum(Order.total)).filter(Order.status != 'cancelled').scalar() or 0,
+        'revenue': db.session.query(db.func.sum(Order.total)).filter(Order.status == 'delivered').scalar() or 0,
     }
     recent_orders = Order.query.order_by(Order.created_at.desc()).limit(10).all()
     recent_users = User.query.order_by(User.created_at.desc()).limit(5).all()
@@ -69,6 +70,8 @@ def change_role(user_id):
         user.role = new_role
         db.session.commit()
         flash(f'Роль пользователя {user.username} изменена на {new_role}', 'success')
+    else:
+        flash('Выбрана недопустимая роль', 'danger')
     return redirect(url_for('admin.users'))
 
 
@@ -79,6 +82,9 @@ def toggle_user(user_id):
     user = db.get_or_404(User, user_id)
     if user.id == current_user.id:
         flash('Нельзя заблокировать себя', 'warning')
+        return redirect(url_for('admin.users'))
+    if current_user.role != 'admin' and user.role == 'admin':
+        flash('Только администратор может управлять аккаунтом администратора', 'danger')
         return redirect(url_for('admin.users'))
     user.is_active = not user.is_active
     db.session.commit()
@@ -171,7 +177,13 @@ def orders():
     if status_filter:
         query = query.filter_by(status=status_filter)
     pagination = query.order_by(Order.created_at.desc()).paginate(page=page, per_page=20, error_out=False)
-    return render_template('admin/orders.html', pagination=pagination, status_filter=status_filter)
+    return render_template(
+        'admin/orders.html',
+        pagination=pagination,
+        status_filter=status_filter,
+        status_labels=Order.STATUS_LABELS,
+        order_transitions=ORDER_TRANSITIONS,
+    )
 
 
 @admin_bp.route('/orders/<int:order_id>/status', methods=['POST'])
@@ -180,7 +192,9 @@ def orders():
 def update_order_status(order_id):
     order = db.get_or_404(Order, order_id)
     new_status = request.form.get('status')
-    if transition_order(order, new_status):
+    if new_status == order.status:
+        flash(f'Заказ #{order.id} уже имеет этот статус', 'info')
+    elif transition_order(order, new_status):
         db.session.commit()
         flash(f'Статус заказа #{order.id} обновлён', 'success')
     else:
@@ -214,12 +228,21 @@ def add_category():
     if Category.query.filter_by(slug=slug).first():
         flash('Такой slug уже существует', 'danger')
         return redirect(url_for('admin.categories'))
-    if parent_id and not db.session.get(Category, parent_id):
+    parent = db.session.get(Category, parent_id) if parent_id else None
+    if parent_id and not parent:
         flash('Выбранная родительская категория не найдена', 'danger')
+        return redirect(url_for('admin.categories'))
+    if parent and parent.parent_id:
+        flash('Подкатегорию можно создать только внутри корневой категории', 'danger')
         return redirect(url_for('admin.categories'))
     cat = Category(name=name, slug=slug, icon=icon, parent_id=parent_id or None)
     db.session.add(cat)
-    db.session.commit()
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        flash('Категория с таким slug уже существует', 'danger')
+        return redirect(url_for('admin.categories'))
     flash(f'Категория "{name}" добавлена', 'success')
     return redirect(url_for('admin.categories'))
 

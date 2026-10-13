@@ -1,2 +1,2 @@
 - [Flask + pnpm workspace coexistence](flask-pnpm-coexistence.md) — DATABASE_URL в окружении занята Node.js, для Flask использовать FLASK_DATABASE_URL
-- [Yandex Maps checkout](yandex-maps-checkout.md) — карта ПВЗ подключается через YANDEX_MAPS_API_KEY, а данные берутся из внутреннего delivery endpoint
+- [Yandex Maps checkout](yandex-maps-checkout.md) — карта получает только подтверждённые точки операторов с сервера; без API каталога показывает явную недоступность

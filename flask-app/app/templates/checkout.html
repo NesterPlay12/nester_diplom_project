@@ -49,6 +49,11 @@
 
 {# Единая форма — охватывает всё, включая скрытые поля пикапа #}
 <form method="post" id="checkout-form">
+  {% include '_csrf_field.html' %}
+  <input type="hidden" name="payment_method" value="cash_on_delivery">
+  <input type="hidden" name="pvz_provider" id="pvz-provider">
+  <input type="hidden" name="pvz_id" id="pvz-id">
+  <input type="hidden" name="pvz_city" id="pvz-city-selected">
 
   {# Скрытый итоговый адрес — JS заполняет перед сабмитом #}
   <input type="hidden" name="address" id="final-address">
@@ -69,7 +74,7 @@
                  name="delivery_type" value="courier" checked>
           <div>
             <div class="fw-semibold"><i class="bi bi-house-door me-1"></i>Курьерская доставка</div>
-            <div class="small text-muted">Доставим по вашему адресу</div>
+            <div class="small text-muted">Адрес для обработки заказа продавцом</div>
           </div>
         </label>
         <label class="delivery-option flex-grow-1 d-flex align-items-center gap-3 p-3 border rounded-3">
@@ -161,6 +166,7 @@
           </div>
         </div>
       </div>
+      <div id="pvz-status" class="alert alert-info mt-3 mb-0" role="status" hidden></div>
 
       {# Карточка выбранного ПВЗ #}
       <div id="selected-pvz-card" class="mt-3 p-3 rounded-3 border border-2"
@@ -177,22 +183,12 @@
       <h5 class="fw-bold mb-3"><i class="bi bi-credit-card me-2 text-wb"></i>Способ оплаты</h5>
       <div class="d-flex flex-column gap-2">
         <div class="form-check p-3 border rounded-3">
-          <input class="form-check-input" type="radio" name="payment" id="pay-card" value="card" checked>
-          <label class="form-check-label fw-semibold" for="pay-card">
-            <i class="bi bi-credit-card me-2"></i>Банковская карта
+          <input class="form-check-input" type="radio" id="pay-on-delivery"
+                 value="cash_on_delivery" checked disabled>
+          <label class="form-check-label fw-semibold" for="pay-on-delivery">
+            <i class="bi bi-cash me-2"></i>Оплата при получении
           </label>
-        </div>
-        <div class="form-check p-3 border rounded-3">
-          <input class="form-check-input" type="radio" name="payment" id="pay-cash" value="cash">
-          <label class="form-check-label fw-semibold" for="pay-cash">
-            <i class="bi bi-cash me-2"></i>Наличными при получении
-          </label>
-        </div>
-        <div class="form-check p-3 border rounded-3">
-          <input class="form-check-input" type="radio" name="payment" id="pay-sbp" value="sbp">
-          <label class="form-check-label fw-semibold" for="pay-sbp">
-            <i class="bi bi-phone me-2"></i>СБП (Система Быстрых Платежей)
-          </label>
+          <div class="small text-muted mt-1">Онлайн-оплата не подключена.</div>
         </div>
       </div>
     </div>
@@ -205,7 +201,7 @@
       <h5 class="fw-bold mb-3">Ваш заказ</h5>
       {% for item in items %}{% if item.product %}
       <div class="d-flex gap-2 mb-2 align-items-center">
-        <img src="{{ item.product.image_url or 'https://placehold.co/48x48/cb11ab/ffffff?text=?' }}"
+        <img src="{{ item.product.image_url or url_for('static', filename='images/product-placeholder.svg') }}"
              style="width:48px;height:48px;object-fit:cover;border-radius:6px;">
         <div class="flex-grow-1">
           <div class="small fw-semibold text-truncate" style="max-width:180px">{{ item.product.name }}</div>
@@ -229,11 +225,11 @@
       </div>
       <div class="d-flex justify-content-between mb-1">
         <span class="text-muted">Доставка</span>
-        <span class="text-success fw-semibold">Бесплатно</span>
+        <span class="text-muted">Стоимость уточняется</span>
       </div>
       <hr>
       <div class="d-flex justify-content-between fw-bold fs-5 mb-4">
-        <span>Итого</span>
+        <span>Товары</span>
         <span class="text-wb">{{ "{:,.0f}".format(total) }} ₽</span>
       </div>
       <button type="submit" class="btn btn-wb w-100 btn-lg fw-bold">

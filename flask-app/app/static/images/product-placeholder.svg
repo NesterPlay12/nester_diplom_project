@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" role="img" aria-labelledby="title">
+  <title id="title">Изображение товара не добавлено</title>
+  <rect width="640" height="640" fill="#f4f5f7"/>
+  <path d="M205 245h230l-20 235H225z" fill="#fff" stroke="#cb11ab" stroke-width="12" stroke-linejoin="round"/>
+  <path d="M255 250c0-42 29-75 65-75s65 33 65 75" fill="none" stroke="#cb11ab" stroke-width="12" stroke-linecap="round"/>
+  <circle cx="285" cy="335" r="12" fill="#cb11ab"/>
+  <circle cx="355" cy="335" r="12" fill="#cb11ab"/>
+  <path d="M285 390c22 22 48 22 70 0" fill="none" stroke="#cb11ab" stroke-width="10" stroke-linecap="round"/>
+</svg>

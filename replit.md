@@ -1,17 +1,20 @@
-# WildMarket — Аналог Wildberries
+# WildMarket
 
-Полноценный маркетплейс (дипломная работа) — аналог Wildberries на Python/Flask/SQLite (с поддержкой MySQL).
+Онлайн-площадка с каталогом товаров, продавцами, заказами и административной панелью. Приложение работает на Python/Flask.
 
 ## Запуск
 
 - **Flask-приложение**: воркфлоу `WildMarket (Flask)` — порт 8000
-- `cd flask-app && python seed.py` — заполнить базу тестовыми данными (запустить один раз)
+- `cd flask-app && python manage.py create-admin` — создать администратора с интерактивным вводом пароля
+- `cd flask-app && python seed.py --demo` — создать демонстрационные данные для локальной разработки
 - `cd flask-app && python run.py` — запустить вручную
+- `cd flask-app && python -m unittest discover -s tests -v` — запустить регрессионные тесты
 
 ## Стек
 
 - Python 3.11
 - Flask 3.x + Flask-SQLAlchemy + Flask-Login
+- Flask-WTF CSRF protection
 - SQLite (по умолчанию) / MySQL (через PyMySQL)
 - Bootstrap 5 (CDN)
 - Werkzeug (хэширование паролей)
@@ -23,27 +26,19 @@
 - `flask-app/app/routes/` — маршруты: main, auth, products, cart, account, seller, admin
 - `flask-app/app/templates/` — Jinja2 шаблоны
 - `flask-app/app/static/` — CSS и JS
-- `flask-app/seed.py` — заполнение БД тестовыми данными
+- `flask-app/seed.py` — локальные демонстрационные данные (не запускаются приложением)
+- `flask-app/manage.py` — административные команды
 - `flask-app/wildberries.db` — SQLite база данных
 
 ## База данных
 
-**По умолчанию**: SQLite (`flask-app/wildberries.db`) — работает без настройки.
+**Для локальной разработки**: SQLite (`flask-app/wildberries.db`).
 
-**Для MySQL**: задать переменную окружения `FLASK_DATABASE_URL`:
+**Для production**: подключить постоянную базу через `FLASK_DATABASE_URL` (приоритет), `MYSQL_URL` или `MYSQL_HOST`/`MYSQL_USER`/`MYSQL_PASSWORD`/`MYSQL_DB`. Локальный SQLite не подходит для autoscale deployment.
 ```
 mysql+pymysql://user:password@localhost/wildberries?charset=utf8mb4
 ```
-Или задать отдельно: `MYSQL_HOST`, `MYSQL_USER`, `MYSQL_PASSWORD`, `MYSQL_DB`.
-
-## Тестовые аккаунты
-
-| Роль | Email | Пароль |
-|------|-------|--------|
-| Администратор | admin@wildmarket.ru | admin123 |
-| Модератор | moder@wildmarket.ru | moder123 |
-| Продавец | seller1@wildmarket.ru | seller123 |
-| Покупатель | ivan@example.ru | user123 |
+Production также требует `SESSION_SECRET`. Приложение не создаёт пользователей и демонстрационные товары при старте. Первый аккаунт администратора создаётся вручную командой `python manage.py create-admin`.
 
 ## Функционал
 
@@ -79,9 +74,10 @@ mysql+pymysql://user:password@localhost/wildberries?charset=utf8mb4
 ## Gotchas
 
 - Не использовать переменную `DATABASE_URL` (она занята Node.js API) — для Flask использовать `FLASK_DATABASE_URL`
-- Перед первым запуском выполнить `python seed.py` для заполнения БД
-- Admin-панель доступна только для ролей `admin` и `moderator`
+- Демонстрационные данные создавать только вручную для локальной разработки
+- Admin-панель доступна ролям `admin` и `moderator`; назначать роль администратора может только `admin`
 - Seller-панель доступна для ролей `seller` и `admin`
+- Пункты выдачи берутся только из официальных каталогов операторов; фиктивные адреса не используются
 
 ## User preferences
 

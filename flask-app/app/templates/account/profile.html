@@ -83,8 +83,9 @@
         {% if not current_user.is_seller %}
         <div class="bg-light border rounded-3 p-4 mb-4">
             <h5 class="fw-bold">Стать продавцом</h5>
-            <p class="text-muted mb-3">Начните продавать на WildMarket. Это бесплатно!</p>
+            <p class="text-muted mb-3">Создайте карточки товаров и управляйте заказами через личный кабинет.</p>
             <form action="{{ url_for('seller.become_seller') }}" method="post">
+                {% include '_csrf_field.html' %}
                 <button type="submit" class="btn btn-wb">Стать продавцом</button>
             </form>
         </div>

@@ -18,6 +18,8 @@ def _get_db_url():
     # Normalize provider URL spellings for SQLAlchemy.
     if url.startswith('postgres://'):
         url = url.replace('postgres://', 'postgresql://', 1)
+    elif url.startswith('mysql://'):
+        url = url.replace('mysql://', 'mysql+pymysql://', 1)
     return url
 
 

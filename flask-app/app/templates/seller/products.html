@@ -29,7 +29,7 @@
                 <tr>
                     <td>
                         <div class="d-flex align-items-center gap-2">
-                            <img src="{{ p.image_url or 'https://placehold.co/48x48/cb11ab/ffffff?text=?' }}"
+                            <img src="{{ p.image_url or url_for('static', filename='images/product-placeholder.svg') }}"
                                  style="width:48px;height:48px;object-fit:cover;border-radius:6px;">
                             <div>
                                 <div class="fw-semibold small">{{ p.name[:50] }}{% if p.name|length > 50 %}...{% endif %}</div>
@@ -42,7 +42,7 @@
                         <span class="fw-semibold">{{ "{:,.0f}".format(p.price) }} ₽</span>
                         {% if p.old_price %}<br><small class="text-muted text-decoration-line-through">{{ "{:,.0f}".format(p.old_price) }} ₽</small>{% endif %}
                     </td>
-                    <td>{{ p.stock }}</td>
+                    <td>{{ p.available_stock }}</td>
                     <td><span class="text-warning">★</span> {{ p.rating|round(1) }} ({{ p.review_count }})</td>
                     <td>
                         {% if not p.is_active %}<span class="badge bg-secondary">Снят</span>
@@ -57,6 +57,7 @@
                             </a>
                             <form action="{{ url_for('seller.delete_product', product_id=p.id) }}" method="post"
                                   onsubmit="return confirm('Снять товар с продажи?')">
+                                {% include '_csrf_field.html' %}
                                 <button type="submit" class="btn btn-sm btn-outline-danger">
                                     <i class="bi bi-eye-slash"></i>
                                 </button>

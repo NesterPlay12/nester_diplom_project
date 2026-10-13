@@ -9,8 +9,12 @@
   let clusterer = null;
   let selectedPvz = null;
   let allPvz = [];
+  let unavailableProviders = {};
   let currentProvider = 'all';
+  let mapCityUnresolved = false;
   let mapCenter = [55.7558, 37.6176];
+  const appBasePath = document.querySelector('meta[name="app-base-path"]')?.content || '';
+  const appUrl = path => `${appBasePath}${path}`;
 
   const PROVIDER_COLOR = { cdek: '#ff7a00', pochta: '#a700ff' };
   const PROVIDER_LABEL = { cdek: 'СДЭК', pochta: 'Почта России' };
@@ -45,7 +49,7 @@
     return `<div style="min-width:220px">
       <b>${escapeHtml(pvz.name)}</b>
       <div style="margin:6px 0;color:#555">${escapeHtml(pvz.address)}</div>
-      <div style="font-size:12px;color:#777">${escapeHtml(pvz.work_time || 'Пн-Вс 9:00-21:00')}</div>
+      <div style="font-size:12px;color:#777">${escapeHtml(pvz.work_time || 'График уточняется')}</div>
       <button type="button" class="btn-select-pvz" data-pvz-id="${escapeHtml(pvz.id)}"
         style="margin-top:10px;padding:7px 12px;background:#cb11ab;color:#fff;border:0;border-radius:6px;font-weight:600;width:100%">
         Выбрать этот пункт
@@ -89,7 +93,7 @@
   function renderMarkers(list) {
     if (!map || !clusterer) return;
     clusterer.removeAll();
-    const geoObjects = list.filter(p => p.lat && p.lng).map(pvz => {
+    const geoObjects = list.filter(p => Number.isFinite(Number(p.lat)) && Number.isFinite(Number(p.lng))).map(pvz => {
       const point = new ymaps.Placemark([pvz.lat, pvz.lng], {
         name: pvz.name, address: pvz.address,
         balloonContentBody: popupHtml(pvz),
@@ -109,14 +113,14 @@
     const container = qs('pvz-list');
     if (!container) return;
     if (!list.length) {
-      container.innerHTML = '<div class="p-3 text-center text-secondary">Пункты не найдены</div>';
+      container.innerHTML = '<div class="p-3 text-center text-secondary">По выбранным условиям пунктов нет</div>';
       return;
     }
     container.innerHTML = list.map(pvz => `
       <div class="pvz-list-item mb-1" data-pvz-id="${escapeHtml(pvz.id)}">
         <div class="small fw-semibold">${escapeHtml(pvz.address)}</div>
         <div class="pvz-address small mt-1">${escapeHtml(pvz.name)}</div>
-        <div class="pvz-meta mt-1"><span class="pvz-star">★</span> 5 · Пункт выдачи · Бесплатно</div>
+        <div class="pvz-meta mt-1">${escapeHtml(PROVIDER_LABEL[pvz.provider] || 'Пункт выдачи')}${pvz.work_time ? ` · ${escapeHtml(pvz.work_time)}` : ''}</div>
       </div>`).join('');
     container.querySelectorAll('.pvz-list-item').forEach(item => item.addEventListener('click', () => {
       const pvz = list.find(point => point.id === item.dataset.pvzId);
@@ -135,6 +139,9 @@
 
   function selectPvz(pvz) {
     selectedPvz = pvz;
+    if (qs('pvz-provider')) qs('pvz-provider').value = pvz.provider;
+    if (qs('pvz-id')) qs('pvz-id').value = pvz.id;
+    if (qs('pvz-city-selected')) qs('pvz-city-selected').value = qs('pvz-city')?.value.trim() || '';
     const display = qs('pvz-address-display');
     if (display) display.value = pvz.address;
     const card = qs('selected-pvz-card');
@@ -154,6 +161,9 @@
 
   function clearPvz() {
     selectedPvz = null;
+    if (qs('pvz-provider')) qs('pvz-provider').value = '';
+    if (qs('pvz-id')) qs('pvz-id').value = '';
+    if (qs('pvz-city-selected')) qs('pvz-city-selected').value = '';
     if (qs('pvz-address-display')) qs('pvz-address-display').value = '';
     if (qs('selected-pvz-card')) {
       qs('selected-pvz-card').style.display = 'none';
@@ -168,6 +178,7 @@
 
   function applyProvider(provider) {
     currentProvider = provider;
+    if (selectedPvz && provider !== 'all' && selectedPvz.provider !== provider) clearPvz();
     document.querySelectorAll('[data-pvz-provider]').forEach(button => {
       const active = button.dataset.pvzProvider === provider;
       button.classList.toggle('active', active);
@@ -178,25 +189,66 @@
     renderMarkers(list);
     renderList(list);
     if (qs('pvz-count')) qs('pvz-count').textContent = `${list.length} пункт${suffix(list.length)} выдачи`;
+    const relevantErrors = provider === 'all'
+      ? Object.values(unavailableProviders)
+      : [unavailableProviders[provider]].filter(Boolean);
+    if (mapCityUnresolved) relevantErrors.push('Не удалось определить город на карте. Проверьте его название.');
+    const status = qs('pvz-status');
+    if (status) {
+      status.textContent = relevantErrors.join(' ') || (!allPvz.length ? 'В выбранном городе каталог не вернул пунктов выдачи.' : '');
+      status.hidden = !status.textContent;
+    }
   }
 
   async function loadPvz(city) {
     const spinner = qs('pvz-spinner'), wrap = qs('pvz-map-wrap');
     if (spinner) spinner.style.display = 'flex';
     if (wrap) wrap.style.display = 'none';
+    clearPvz();
     try {
-      const response = await fetch(`/delivery/pvz?city=${encodeURIComponent(city)}&provider=all`);
+      const response = await fetch(appUrl(`/delivery/pvz?city=${encodeURIComponent(city)}&provider=all`));
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const data = await response.json();
       allPvz = data.pvz || [];
-      mapCenter = data.center || mapCenter;
+      unavailableProviders = data.unavailable || {};
+      mapCityUnresolved = false;
+      let cityResolved = false;
+      if (
+        Array.isArray(data.center)
+        && data.center.length === 2
+        && data.center.every(value => Number.isFinite(Number(value)))
+      ) {
+        mapCenter = data.center.map(Number);
+        cityResolved = true;
+      } else if (window.ymaps) {
+        try {
+          const geo = await ymaps.geocode(city, { results: 1 });
+          const first = geo.geoObjects.get(0);
+          if (first) {
+            mapCenter = first.geometry.getCoordinates();
+            cityResolved = true;
+          }
+        } catch (_) {
+          cityResolved = false;
+        }
+      }
+      mapCityUnresolved = !cityResolved;
+      const mapElement = qs('pvz-map');
+      if (mapElement) mapElement.style.display = cityResolved ? '' : 'none';
       initMap();
-      map?.setCenter(mapCenter, 12);
+      if (cityResolved) map?.setCenter(mapCenter, 12);
       applyProvider(currentProvider);
       if (wrap) wrap.style.display = 'flex';
     } catch (error) {
       console.error('PVZ load error:', error);
       allPvz = [];
+      unavailableProviders = {};
+      mapCityUnresolved = false;
+      const status = qs('pvz-status');
+      if (status) {
+        status.textContent = 'Не удалось получить каталог пунктов выдачи. Попробуйте ещё раз.';
+        status.hidden = false;
+      }
       renderList([]);
       if (qs('pvz-count')) qs('pvz-count').textContent = '';
     } finally {
@@ -234,7 +286,8 @@
           alert('Введите город и выберите пункт выдачи на карте');
           return;
         }
-        qs('final-address').value = `ПВЗ ${PROVIDER_LABEL[selectedPvz.provider]}: ${selectedPvz.address}`;
+       qs('final-address').value = `ПВЗ ${PROVIDER_LABEL[selectedPvz.provider]}: ${selectedPvz.address}`;
+       qs('pvz-city-selected').value = qs('pvz-city')?.value.trim() || '';
       } else {
         const address = qs('courier-address')?.value.trim();
         if (!address) {

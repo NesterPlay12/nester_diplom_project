@@ -12,6 +12,7 @@ class User(UserMixin, db.Model):
     username = db.Column(db.String(80), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
+    has_local_password = db.Column(db.Boolean, nullable=False, default=True)
     google_id = db.Column(db.String(100), unique=True)
     role = db.Column(db.String(20), default='user')
     phone = db.Column(db.String(20))
@@ -71,7 +72,7 @@ class Product(db.Model):
     sku = db.Column(db.String(50))
     category_id = db.Column(db.Integer, db.ForeignKey('categories.id'), nullable=False)
     seller_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    stock = db.Column(db.Integer, default=0)
+    stock = db.Column(db.Integer, default=0, nullable=False)
     rating = db.Column(db.Float, default=0.0)
     review_count = db.Column(db.Integer, default=0)
     image_url = db.Column(db.String(255))
@@ -93,6 +94,10 @@ class Product(db.Model):
         return 0
 
     @property
+    def available_stock(self):
+        return max(self.stock or 0, 0)
+
+    @property
     def colors(self):
         return [value.strip() for value in (self.color_options or '').split(',') if value.strip()]
 
@@ -109,7 +114,7 @@ class CartItem(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     product_id = db.Column(db.Integer, db.ForeignKey('products.id'), nullable=False)
-    quantity = db.Column(db.Integer, default=1)
+    quantity = db.Column(db.Integer, default=1, nullable=False)
     selected_color = db.Column(db.String(80), nullable=False, default='')
     selected_size = db.Column(db.String(40), nullable=False, default='')
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
@@ -129,6 +134,7 @@ class Order(db.Model):
     status = db.Column(db.String(30), default='pending')
     total = db.Column(db.Float, nullable=False)
     address = db.Column(db.Text, nullable=False)
+    payment_method = db.Column(db.String(30), nullable=False, default='cash_on_delivery')
     phone = db.Column(db.String(20))
     comment = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
@@ -143,6 +149,9 @@ class Order(db.Model):
         'shipped': 'Отправлен',
         'delivered': 'Доставлен',
         'cancelled': 'Отменён',
+    }
+    PAYMENT_LABELS = {
+        'cash_on_delivery': 'Оплата при получении',
     }
 
     @property
@@ -160,6 +169,10 @@ class Order(db.Model):
             'cancelled': 'danger',
         }
         return colors.get(self.status, 'secondary')
+
+    @property
+    def payment_label(self):
+        return self.PAYMENT_LABELS.get(self.payment_method, 'Не указан')
 
 
 class OrderItem(db.Model):

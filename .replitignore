@@ -3,3 +3,7 @@
 
 # No need to store the pnpm store twice.
 .local
+flask-app/wildberries.db
+flask-app/*.schema.lock
+**/__pycache__
+**/*.py[cod]

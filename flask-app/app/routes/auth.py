@@ -1,5 +1,6 @@
 import os
-from urllib.parse import urlparse
+import re
+from urllib.parse import unquote, urlparse
 from flask import Blueprint, render_template, redirect, url_for, request, flash, session, current_app
 from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash
@@ -9,13 +10,17 @@ from ..models import db, User
 from ..oauth import oauth
 
 auth_bp = Blueprint('auth', __name__)
+_EMAIL_PATTERN = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
 
 
 def _safe_local_redirect(target):
     if not target or not target.startswith('/') or target.startswith('//') or '\\' in target:
         return None
-    parsed = urlparse(target)
-    if parsed.scheme or parsed.netloc:
+    decoded_target = unquote(target)
+    if any(ord(character) < 32 or ord(character) == 127 for character in decoded_target):
+        return None
+    parsed = urlparse(decoded_target)
+    if parsed.scheme or parsed.netloc or parsed.path.startswith('//') or '\\' in parsed.path:
         return None
     return target
 
@@ -30,7 +35,7 @@ def login():
         email = request.form.get('email', '').strip().lower()
         password = request.form.get('password', '')
         remember = request.form.get('remember') == 'on'
-        user = User.query.filter_by(email=email).first()
+        user = User.query.filter(func.lower(User.email) == email).first()
         if user and user.check_password(password):
             if not user.is_active:
                 flash('Ваш аккаунт заблокирован. Обратитесь в поддержку.', 'danger')
@@ -60,7 +65,7 @@ def register():
         if len(username) < 3 or len(username) > 80:
             flash('Имя пользователя должно содержать от 3 до 80 символов', 'danger')
             return render_template('auth/register.html')
-        if len(email) > 120 or '@' not in email or '.' not in email.rsplit('@', 1)[-1]:
+        if len(email) > 120 or not _EMAIL_PATTERN.fullmatch(email):
             flash('Укажите корректный email', 'danger')
             return render_template('auth/register.html')
         if len(password) < 8:
@@ -79,9 +84,10 @@ def register():
             flash('Это имя пользователя уже занято', 'danger')
             return render_template('auth/register.html')
 
-        user = User(username=username, email=email, phone=phone)
+        user = User(username=username.lower(), email=email, phone=phone)
         user.set_password(password)
         db.session.add(user)
+
         try:
             db.session.commit()
         except IntegrityError:
@@ -116,7 +122,7 @@ def google_login():
         or url_for('auth.google_callback', _external=True)
     )
     # Сохраняем next, чтобы вернуться после логина
-    session['oauth_next'] = request.args.get('next', '')
+    session['oauth_next'] = _safe_local_redirect(request.args.get('next', '')) or ''
     return oauth.google.authorize_redirect(redirect_uri)
 
 
@@ -139,25 +145,43 @@ def google_callback():
             user_info = {}
     if hasattr(user_info, 'json'):
         user_info = user_info.json()
+    if not isinstance(user_info, dict):
+        user_info = {}
     google_id = user_info.get('sub')
-    email = user_info.get('email', '').strip().lower()
-    name = user_info.get('name', '') or email.split('@')[0]
-    avatar = user_info.get('picture', '')
+    email_value = user_info.get('email', '')
+    email = email_value.strip().lower() if isinstance(email_value, str) else ''
+    name_value = user_info.get('name', '')
+    name = name_value if isinstance(name_value, str) and name_value else email.split('@')[0]
+    avatar_value = user_info.get('picture', '')
+    avatar = avatar_value if isinstance(avatar_value, str) and len(avatar_value) <= 255 else ''
 
     email_verified = user_info.get('email_verified') is True or str(
         user_info.get('email_verified', '')
     ).lower() == 'true'
-    if not google_id or not email or not email_verified:
+    if (
+        not google_id
+        or len(str(google_id)) > 100
+        or not _EMAIL_PATTERN.fullmatch(email)
+        or not email_verified
+    ):
         flash('Не удалось получить данные от Google.', 'danger')
         return redirect(url_for('auth.login'))
 
     # 1. Ищем по google_id
     user = User.query.filter_by(google_id=google_id).first()
+    if user and not user.is_active:
+        db.session.rollback()
+        flash('Ваш аккаунт заблокирован. Обратитесь в поддержку.', 'danger')
+        return redirect(url_for('auth.login'))
 
     if not user:
         # 2. Ищем по email — привязываем Google к существующему аккаунту
         user = User.query.filter(func.lower(User.email) == email).first()
         if user:
+            if not user.is_active:
+                db.session.rollback()
+                flash('Ваш аккаунт заблокирован. Обратитесь в поддержку.', 'danger')
+                return redirect(url_for('auth.login'))
             user.google_id = google_id
             if avatar and not user.avatar_url:
                 user.avatar_url = avatar
@@ -168,7 +192,7 @@ def google_callback():
             base = ''.join(c for c in base if c.isalnum() or c == '_')[:25] or 'user'
             username = base
             counter = 1
-            while User.query.filter_by(username=username).first():
+            while User.query.filter(func.lower(User.username) == username.lower()).first():
                 username = f"{base}{counter}"
                 counter += 1
 
@@ -177,16 +201,19 @@ def google_callback():
                 email=email,
                 google_id=google_id,
                 avatar_url=avatar,
+                has_local_password=False,
             )
             # Ставим неугадываемый случайный хэш — пароль через Google не используется
             user.password_hash = generate_password_hash(os.urandom(32).hex())
             db.session.add(user)
 
-        db.session.commit()
-
-    if not user.is_active:
-        flash('Ваш аккаунт заблокирован. Обратитесь в поддержку.', 'danger')
-        return redirect(url_for('auth.login'))
+        try:
+            db.session.commit()
+        except IntegrityError:
+            db.session.rollback()
+            current_app.logger.warning('Google account link/create conflicted with an existing account')
+            flash('Не удалось связать аккаунт. Попробуйте войти по email и паролю.', 'warning')
+            return redirect(url_for('auth.login'))
 
     login_user(user, remember=True)
     flash(f'Добро пожаловать, {user.username}!', 'success')

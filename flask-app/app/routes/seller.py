@@ -25,13 +25,13 @@ def dashboard():
     product_ids = [p.id for p in products]
     sold_items = (
         OrderItem.query.join(Order, Order.id == OrderItem.order_id)
-        .filter(OrderItem.product_id.in_(product_ids), Order.status != 'cancelled')
+        .filter(OrderItem.product_id.in_(product_ids), Order.status == 'delivered')
         .all()
         if product_ids else []
     )
     revenue = sum(i.price * i.quantity for i in sold_items)
     active_count = sum(1 for p in products if p.is_active and p.is_approved)
-    pending_count = sum(1 for p in products if not p.is_approved)
+    pending_count = sum(1 for p in products if p.is_active and not p.is_approved)
     return render_template('seller/dashboard.html', products=products, revenue=revenue,
                            active_count=active_count, pending_count=pending_count,
                             sold_count=sum(i.quantity for i in sold_items))

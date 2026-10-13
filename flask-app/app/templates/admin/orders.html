@@ -6,7 +6,7 @@
     <form class="d-flex gap-2" method="get">
         <select class="form-select" name="status" style="max-width:220px;">
             <option value="">Все статусы</option>
-            {% for s, label in [('pending','Ожидает'),('confirmed','Подтверждён'),('processing','В обработке'),('shipped','Отправлен'),('delivered','Доставлен'),('cancelled','Отменён')] %}
+            {% for s, label in status_labels.items() %}
             <option value="{{ s }}" {% if status_filter==s %}selected{% endif %}>{{ label }}</option>
             {% endfor %}
         </select>
@@ -26,7 +26,8 @@
                     <th>Товаров</th>
                     <th>Адрес</th>
                     <th>Статус</th>
-                    <th>Дата</th>
+            <th>Дата</th>
+                    <th>Оплата</th>
                     <th>Изменить статус</th>
                 </tr>
             </thead>
@@ -42,12 +43,16 @@
                     </td>
                     <td><span class="badge bg-{{ order.status_color }}">{{ order.status_label }}</span></td>
                     <td class="small text-muted">{{ order.created_at.strftime('%d.%m.%Y %H:%M') }}</td>
+                    <td class="small">{{ order.payment_label }}</td>
                     <td>
                         <form action="{{ url_for('admin.update_order_status', order_id=order.id) }}" method="post"
                               class="d-flex gap-1">
+                            {% include '_csrf_field.html' %}
                             <select class="form-select form-select-sm" name="status" style="width:160px;">
-                                {% for s, label in [('pending','Ожидает'),('confirmed','Подтверждён'),('processing','В обработке'),('shipped','Отправлен'),('delivered','Доставлен'),('cancelled','Отменён')] %}
+                                {% for s, label in status_labels.items() %}
+                                {% if s == order.status or s in order_transitions[order.status] %}
                                 <option value="{{ s }}" {% if order.status==s %}selected{% endif %}>{{ label }}</option>
+                                {% endif %}
                                 {% endfor %}
                             </select>
                             <button type="submit" class="btn btn-sm btn-wb">✓</button>

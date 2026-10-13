@@ -1,6 +1,7 @@
-from flask import Blueprint, render_template, request, redirect, url_for
-from ..models import db, Product, Category
-from ..services.catalog import filter_by_price, sort_products
+from flask import Blueprint, render_template, request, flash
+from flask_login import current_user
+from ..models import db, Product, Category, Review, Order, OrderItem
+from ..services.catalog import filter_by_price, parse_price_filters, sort_products
 
 main_bp = Blueprint('main', __name__)
 
@@ -18,8 +19,9 @@ def category(slug):
     cat = Category.query.filter_by(slug=slug).first_or_404()
     page = request.args.get('page', 1, type=int)
     sort = request.args.get('sort', 'popular')
-    min_price = request.args.get('min_price', type=float)
-    max_price = request.args.get('max_price', type=float)
+    min_price, max_price, price_errors = parse_price_filters(request.args)
+    if price_errors:
+        flash(' '.join(price_errors), 'warning')
 
     child_ids = [c.id for c in cat.children] + [cat.id]
     query = Product.query.filter(
@@ -43,8 +45,9 @@ def search():
     page = request.args.get('page', 1, type=int)
     sort = request.args.get('sort', 'popular')
     cat_id = request.args.get('category', type=int)
-    min_price = request.args.get('min_price', type=float)
-    max_price = request.args.get('max_price', type=float)
+    min_price, max_price, price_errors = parse_price_filters(request.args)
+    if price_errors:
+        flash(' '.join(price_errors), 'warning')
 
     query = Product.query.filter(Product.is_active.is_(True), Product.is_approved.is_(True))
 
@@ -77,6 +80,26 @@ def product_detail(product_id):
         Product.is_active.is_(True),
         Product.is_approved.is_(True)
     ).order_by(Product.rating.desc(), Product.id.desc()).limit(8).all()
-    from ..models import Review
     reviews = Review.query.filter_by(product_id=product_id).order_by(Review.created_at.desc()).all()
-    return render_template('product.html', product=product, related=related, reviews=reviews)
+    can_review = False
+    has_review = False
+    if current_user.is_authenticated:
+        has_review = Review.query.filter_by(
+            product_id=product_id,
+            user_id=current_user.id,
+        ).first() is not None
+        can_review = not has_review and db.session.query(OrderItem.id).join(
+            Order, Order.id == OrderItem.order_id
+        ).filter(
+            Order.user_id == current_user.id,
+            Order.status == 'delivered',
+            OrderItem.product_id == product_id,
+        ).first() is not None
+    return render_template(
+        'product.html',
+        product=product,
+        related=related,
+        reviews=reviews,
+        can_review=can_review,
+        has_review=has_review,
+    )

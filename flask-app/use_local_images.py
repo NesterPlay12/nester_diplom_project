@@ -1,7 +1,23 @@
-"""Переводит товары на локальные изображения, доступные в опубликованном Flask-приложении."""
+"""Assign bundled images to missing images in an explicitly selected local demo catalog."""
+import argparse
+
 from app import create_app
 from app.models import db, Product
 
+
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument(
+    '--demo',
+    action='store_true',
+    help='Confirm that this command is being run against a local demo database.',
+)
+args = parser.parse_args()
+if not args.demo:
+    parser.error('This data-changing command requires the explicit --demo flag.')
+
+app = create_app()
+if app.config.get('ENVIRONMENT') != 'development':
+    raise SystemExit('Bundled demo images may only be applied in development mode.')
 
 IMAGE_BY_PRODUCT_ID = {
     1: "/static/uploads/products/iphone-15-pro.jpg",
@@ -18,13 +34,11 @@ IMAGE_BY_PRODUCT_ID = {
     12: "/static/uploads/products/harry-potter-books.jpg",
 }
 
-app = create_app()
-
 with app.app_context():
     updated = 0
     for product_id, image_url in IMAGE_BY_PRODUCT_ID.items():
         product = db.session.get(Product, product_id)
-        if product:
+        if product and not (product.image_url or '').strip():
             product.image_url = image_url
             updated += 1
     db.session.commit()

@@ -9,8 +9,11 @@ keep consuming `/delivery/pvz`; the map layer is responsible for rendering, clus
 provider filters, and selection, not for calling carrier APIs directly.
 
 **Why:** The published checkout needs a stable Russian map experience without exposing
-carrier credentials in browser code. Keeping carrier data server-side also preserves the
-fallback behavior when an external provider is unavailable.
+carrier credentials in browser code. Pickup addresses are operational customer data:
+never show generated, sample, scraped, or cached-from-an-unverified-source locations.
+When a provider catalog is unavailable, show that state and do not accept a point.
 
 **How to apply:** When changing the checkout map, keep the key in Secrets, load Yandex
-Maps only on checkout, and pass normalized PVZ data from the Flask endpoint.
+Maps only on checkout, and pass normalized, server-verified official carrier data from
+the Flask endpoint. If the provider API is unavailable or credentials are missing, return
+an empty catalog with a clear status rather than a mock fallback.

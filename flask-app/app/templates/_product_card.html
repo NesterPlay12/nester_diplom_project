@@ -1,7 +1,7 @@
 <div class="product-card">
     <div class="card-img-wrap">
         <a href="{{ url_for('main.product_detail', product_id=product.id) }}">
-            <img src="{{ product.image_url or 'https://placehold.co/400x400/cb11ab/ffffff?text=WildMarket' }}"
+            <img src="{{ product.image_url or url_for('static', filename='images/product-placeholder.svg') }}"
                  alt="{{ product.name }}" loading="lazy">
         </a>
         {% if product.discount_percent > 0 %}
@@ -32,9 +32,14 @@
         </div>
         {% if current_user.is_authenticated %}
         <form action="{{ url_for('cart.add_to_cart', product_id=product.id) }}" method="post" class="mt-2">
+            {% include '_csrf_field.html' %}
+            {% if product.available_stock > 0 %}
             <button type="submit" class="btn btn-sm w-100 btn-wb">
                 <i class="bi bi-cart-plus me-1"></i>В корзину
             </button>
+            {% else %}
+            <button type="button" class="btn btn-sm w-100 btn-outline-secondary" disabled>Нет в наличии</button>
+            {% endif %}
         </form>
         {% else %}
         <a href="{{ url_for('auth.login') }}" class="btn btn-sm w-100 btn-outline-secondary mt-2">

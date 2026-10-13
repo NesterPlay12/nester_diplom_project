@@ -15,7 +15,18 @@ ORDER_TRANSITIONS = {
 
 def transition_order(order, new_status):
     """Apply a valid order transition and restore stock exactly once on cancellation."""
-    if new_status not in ORDER_TRANSITIONS.get(order.status, set()):
+    current_status = order.status
+    if new_status not in ORDER_TRANSITIONS.get(current_status, set()):
+        return False
+
+    updated = db.session.execute(
+        update(Order)
+        .where(Order.id == order.id, Order.status == current_status)
+        .values(status=new_status),
+        execution_options={'synchronize_session': False},
+    )
+    if updated.rowcount != 1:
+        db.session.expire(order, ['status'])
         return False
 
     if new_status == 'cancelled':
@@ -30,5 +41,5 @@ def transition_order(order, new_status):
                 .values(stock=Product.stock + quantity)
             )
 
-    order.status = new_status
+    db.session.expire(order, ['status'])
     return True

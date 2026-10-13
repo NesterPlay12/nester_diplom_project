@@ -14,7 +14,7 @@
 
 <div class="row g-4 mb-5">
     <div class="col-md-5">
-        <img src="{{ product.image_url or 'https://placehold.co/600x600/cb11ab/ffffff?text=WildMarket' }}"
+        <img src="{{ product.image_url or url_for('static', filename='images/product-placeholder.svg') }}"
              alt="{{ product.name }}" class="product-detail-img shadow-sm">
     </div>
     <div class="col-md-7">
@@ -41,8 +41,8 @@
             {% endif %}
         </div>
 
-        {% if product.stock and product.stock > 0 %}
-        <div class="text-success fw-semibold mb-3"><i class="bi bi-check-circle me-1"></i>В наличии ({{ product.stock }} шт.)</div>
+        {% if product.available_stock > 0 %}
+        <div class="text-success fw-semibold mb-3"><i class="bi bi-check-circle me-1"></i>В наличии ({{ product.available_stock }} шт.)</div>
         {% else %}
         <div class="text-danger fw-semibold mb-3"><i class="bi bi-x-circle me-1"></i>Нет в наличии</div>
         {% endif %}
@@ -65,13 +65,14 @@
         </div>
         {% endif %}
         <form id="add-to-cart-form" action="{{ url_for('cart.add_to_cart', product_id=product.id) }}" method="post" class="d-flex gap-3 align-items-center mb-3">
+            {% include '_csrf_field.html' %}
             <div class="qty-control d-flex align-items-center border rounded-3 overflow-hidden">
                 <button type="button" class="btn btn-light px-3 py-2" onclick="changeQty(-1)">−</button>
-                <input type="number" name="quantity" id="qty" value="1" min="1" max="{{ product.stock or 99 }}"
+                <input type="number" name="quantity" id="qty" value="1" min="1" max="{{ product.available_stock }}"
                        class="form-control text-center border-0" style="width:55px;">
                 <button type="button" class="btn btn-light px-3 py-2" onclick="changeQty(1)">+</button>
             </div>
-            <button type="submit" class="add-to-cart-btn flex-grow-1">
+            <button type="submit" class="add-to-cart-btn flex-grow-1" {% if product.available_stock <= 0 %}disabled{% endif %}>
                 <i class="bi bi-cart-plus me-2"></i>Добавить в корзину
             </button>
         </form>
@@ -90,19 +91,19 @@
             <div class="col-4">
                 <div class="p-2 rounded bg-light">
                     <i class="bi bi-truck text-wb fs-5"></i>
-                    <div class="small mt-1">Бесплатная доставка</div>
+                    <div class="small mt-1">Доставка по адресу</div>
                 </div>
             </div>
             <div class="col-4">
                 <div class="p-2 rounded bg-light">
-                    <i class="bi bi-arrow-repeat text-wb fs-5"></i>
-                    <div class="small mt-1">Возврат 60 дней</div>
+                    <i class="bi bi-person-check text-wb fs-5"></i>
+                    <div class="small mt-1">Заказ в профиле</div>
                 </div>
             </div>
             <div class="col-4">
                 <div class="p-2 rounded bg-light">
-                    <i class="bi bi-shield-check text-wb fs-5"></i>
-                    <div class="small mt-1">Гарантия</div>
+                    <i class="bi bi-shop text-wb fs-5"></i>
+                    <div class="small mt-1">От продавца</div>
                 </div>
             </div>
         </div>
@@ -126,10 +127,11 @@
 <div id="reviews" class="mb-4">
     <h3 class="h5 fw-bold mb-3">Отзывы ({{ reviews|length }})</h3>
 
-    {% if current_user.is_authenticated %}
+    {% if can_review %}
     <div class="bg-white rounded-3 p-4 mb-3 shadow-sm">
         <h6 class="fw-semibold mb-3">Оставить отзыв</h6>
         <form action="{{ url_for('products.add_review', product_id=product.id) }}" method="post">
+            {% include '_csrf_field.html' %}
             <div class="mb-3">
                 <label class="form-label">Оценка</label>
                 <div class="star-rating-input d-flex gap-2">
@@ -147,6 +149,10 @@
             <button type="submit" class="btn btn-wb">Отправить отзыв</button>
         </form>
     </div>
+    {% elif current_user.is_authenticated and has_review %}
+    <p class="text-muted">Вы уже оставили отзыв на этот товар.</p>
+    {% elif current_user.is_authenticated %}
+    <p class="text-muted">Оставить отзыв можно после получения товара.</p>
     {% endif %}
 
     {% if reviews %}

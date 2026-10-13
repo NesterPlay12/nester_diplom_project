@@ -5,6 +5,11 @@ dist
 tmp
 out-tsc
 *.tsbuildinfo
+__pycache__/
+*.py[cod]
+*.schema.lock
+.pytest_cache/
+.ruff_cache/
 .expo
 .expo-shared
 

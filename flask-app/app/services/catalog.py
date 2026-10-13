@@ -1,4 +1,33 @@
+from math import isfinite
+
 from ..models import Product
+
+
+def parse_price_filters(args):
+    values = {}
+    errors = []
+    for name, label in (('min_price', 'Минимальная цена'), ('max_price', 'Максимальная цена')):
+        raw = args.get(name, '').strip()
+        if not raw:
+            values[name] = None
+            continue
+        try:
+            parsed = float(raw)
+        except ValueError:
+            parsed = float('nan')
+        if not isfinite(parsed) or parsed < 0:
+            errors.append(f'{label}: укажите неотрицательное число.')
+            values[name] = None
+        else:
+            values[name] = parsed
+    if (
+        values['min_price'] is not None
+        and values['max_price'] is not None
+        and values['min_price'] > values['max_price']
+    ):
+        errors.append('Минимальная цена не может превышать максимальную.')
+        values = {'min_price': None, 'max_price': None}
+    return values['min_price'], values['max_price'], errors
 
 
 def filter_by_price(query, min_price=None, max_price=None):

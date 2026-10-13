@@ -7,6 +7,7 @@
         <div class="bg-white rounded-3 p-4 shadow-sm">
             <h5 class="fw-bold mb-3">Добавить категорию</h5>
             <form method="post" action="{{ url_for('admin.add_category') }}">
+                {% include '_csrf_field.html' %}
                 <div class="mb-3">
                     <label class="form-label fw-semibold">Название <span class="text-danger">*</span></label>
                     <input type="text" class="form-control" name="name" required placeholder="Название категории">
@@ -63,6 +64,7 @@
                             <td>
                                 <form action="{{ url_for('admin.delete_category', cat_id=cat.id) }}" method="post"
                                       onsubmit="return confirm('Удалить категорию {{ cat.name }}?')">
+                                    {% include '_csrf_field.html' %}
                                     <button type="submit" class="btn btn-sm btn-outline-danger"
                                             {% if cat.children or cat.products %}disabled title="Нельзя удалить"{% endif %}>
                                         <i class="bi bi-trash"></i>

@@ -1,6 +1,7 @@
 from flask import Blueprint, render_template, redirect, url_for, request, flash
 from flask_login import login_required, current_user
 from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 from ..models import db, User, Order, Favorite
 from ..services.orders import transition_order
 
@@ -19,6 +20,14 @@ def profile():
 def settings():
     if request.method == 'POST':
         username = request.form.get('username', current_user.username).strip()
+        phone = request.form.get('phone', '').strip()
+        address = request.form.get('address', '').strip()
+        if len(username) < 3 or len(username) > 80:
+            flash('Имя пользователя должно содержать от 3 до 80 символов', 'danger')
+            return render_template('account/settings.html'), 400
+        if len(phone) > 20 or len(address) > 500:
+            flash('Телефон или адрес превышает допустимую длину', 'danger')
+            return render_template('account/settings.html'), 400
         existing_username = User.query.filter(
             func.lower(User.username) == username.lower(),
             User.id != current_user.id,
@@ -26,10 +35,6 @@ def settings():
         if existing_username:
             flash('Это имя пользователя уже занято', 'danger')
             return render_template('account/settings.html')
-        current_user.username = username
-        current_user.phone = request.form.get('phone', '').strip()
-        current_user.address = request.form.get('address', '').strip()
-
         new_password = request.form.get('new_password', '').strip()
         if new_password:
             if len(new_password) < 8:
@@ -38,7 +43,9 @@ def settings():
             old_password = request.form.get('old_password', '')
             # Для аккаунта, созданного через Google, текущего пароля может не быть:
             # авторизованный Google-пользователь может задать его впервые.
-            has_google_only_auth = bool(current_user.google_id) and not old_password
+            has_google_only_auth = bool(
+                current_user.google_id and not current_user.has_local_password and not old_password
+            )
             if not has_google_only_auth and not current_user.check_password(old_password):
                 flash('Неверный текущий пароль', 'danger')
                 return render_template('account/settings.html')
@@ -46,8 +53,17 @@ def settings():
                 flash('Пароли не совпадают', 'danger')
                 return render_template('account/settings.html')
             current_user.set_password(new_password)
+            current_user.has_local_password = True
 
-        db.session.commit()
+        current_user.username = username.lower()
+        current_user.phone = phone
+        current_user.address = address
+        try:
+            db.session.commit()
+        except IntegrityError:
+            db.session.rollback()
+            flash('Это имя пользователя уже занято', 'danger')
+            return render_template('account/settings.html'), 400
         flash('Данные сохранены', 'success')
     return render_template('account/settings.html')
 

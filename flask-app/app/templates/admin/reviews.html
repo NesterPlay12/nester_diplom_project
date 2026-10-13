@@ -38,6 +38,7 @@
                     <td>
                         <form action="{{ url_for('admin.delete_review', review_id=review.id) }}" method="post"
                               onsubmit="return confirm('Удалить отзыв?')">
+                            {% include '_csrf_field.html' %}
                             <button type="submit" class="btn btn-sm btn-outline-danger">
                                 <i class="bi bi-trash"></i>
                             </button>
