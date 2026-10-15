@@ -35,7 +35,7 @@ def settings():
         if existing_username:
             flash('Это имя пользователя уже занято', 'danger')
             return render_template('account/settings.html')
-        new_password = request.form.get('new_password', '').strip()
+        new_password = request.form.get('new_password', '')
         if new_password:
             if len(new_password) < 8:
                 flash('Новый пароль должен содержать минимум 8 символов', 'danger')

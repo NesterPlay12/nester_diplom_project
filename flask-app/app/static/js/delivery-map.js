@@ -297,7 +297,7 @@
         }
         qs('final-address').value = address;
       }
-      qs('final-phone').value = pickup ? (qs('courier-phone')?.value || '') : (qs('courier-phone')?.value || '');
+      qs('final-phone').value = qs('courier-phone')?.value || '';
       qs('final-comment').value = qs('courier-comment')?.value || '';
     });
   });

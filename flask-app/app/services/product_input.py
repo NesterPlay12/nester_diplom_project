@@ -1,7 +1,7 @@
 from math import isfinite
 from urllib.parse import urlparse
 
-from ..models import Category
+from ..models import Category, db
 
 
 def parse_product_form(form, current=None):
@@ -25,6 +25,10 @@ def parse_product_form(form, current=None):
         errors.append('Бренд или артикул превышает допустимую длину.')
     if len(colors) > 2000 or len(sizes) > 2000:
         errors.append('Список цветов или размеров слишком длинный.')
+    if any(len(value.strip()) > 80 for value in colors.split(',')):
+        errors.append('Название цвета не должно превышать 80 символов.')
+    if any(len(value.strip()) > 40 for value in sizes.split(',')):
+        errors.append('Название размера не должно превышать 40 символов.')
 
     price = _parse_number(form.get('price'), current.price if current else None)
     old_price = _parse_number(form.get('old_price'), None, allow_blank=True)
@@ -37,9 +41,11 @@ def parse_product_form(form, current=None):
         errors.append('Укажите корректную цену больше нуля.')
     if old_price is not None and (old_price <= 0 or (price is not None and old_price <= price)):
         errors.append('Старая цена должна быть выше текущей цены.')
+    if form.get('old_price', '').strip() and old_price is None:
+        errors.append('Укажите корректную старую цену.')
     if stock is None or stock < 0:
         errors.append('Остаток должен быть целым числом от нуля.')
-    if category_id is None or Category.query.get(category_id) is None:
+    if category_id is None or db.session.get(Category, category_id) is None:
         errors.append('Выберите существующую категорию.')
 
     if image_url:
@@ -87,6 +93,7 @@ def _parse_integer(value, default):
     if value is None or not value.strip():
         return default
     try:
-        return int(value)
+        number = int(value)
     except (TypeError, ValueError):
         return None
+    return number if 0 <= number <= 2147483647 else None

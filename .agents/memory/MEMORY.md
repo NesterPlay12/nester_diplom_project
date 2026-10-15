@@ -1,2 +1,3 @@
 - [Flask + pnpm workspace coexistence](flask-pnpm-coexistence.md) — DATABASE_URL в окружении занята Node.js, для Flask использовать FLASK_DATABASE_URL
 - [Yandex Maps checkout](yandex-maps-checkout.md) — карта получает только подтверждённые точки операторов с сервера; без API каталога показывает явную недоступность
+- [Сессии за прокси](proxy-sessions.md) — Flask-Login basic сохраняет вход при смене адреса прокси; strong приводил к выходу при переходе между страницами

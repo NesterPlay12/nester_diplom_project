@@ -14,7 +14,9 @@ from .oauth import init_oauth, oauth
 
 
 login_manager = LoginManager()
-login_manager.session_protection = 'strong'
+# Proxy hops and mobile networks can change the observed address between requests.
+# Basic protection marks such sessions non-fresh without silently signing users out.
+login_manager.session_protection = 'basic'
 csrf = CSRFProtect()
 _schema_init_lock = threading.RLock()
 
@@ -282,4 +284,8 @@ def _migrate_cart_variant_constraint(engine):
 
 @login_manager.user_loader
 def load_user(user_id):
-    return db.session.get(User, int(user_id))
+    try:
+        user = db.session.get(User, int(user_id))
+    except (TypeError, ValueError):
+        return None
+    return user if user and user.is_active else None

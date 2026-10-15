@@ -10,6 +10,7 @@ from app import create_app
 from app import _migrate_cart_variant_constraint
 from app.config import _get_db_url
 from app.models import CartItem, Category, Order, OrderItem, Product, User, db
+from app.services.product_input import parse_product_form
 
 
 class MarketplaceTestCase(unittest.TestCase):
@@ -53,6 +54,7 @@ class MarketplaceTestCase(unittest.TestCase):
             db.session.add_all([self.product, self.moderator])
             db.session.commit()
             self.user_id = self.user.id
+            self.category_id = self.category.id
             self.seller_id = self.seller.id
             self.product_id = self.product.id
             self.moderator_id = self.moderator.id
@@ -68,6 +70,79 @@ class MarketplaceTestCase(unittest.TestCase):
             'email': email,
             'password': 'a-long-test-password',
         })
+
+    def test_authenticated_session_survives_proxy_address_changes(self):
+        self.login()
+        for address in ('192.0.2.10', '192.0.2.11'):
+            response = self.client.get('/account/', headers={'X-Forwarded-For': address})
+            self.assertEqual(response.status_code, 200)
+        with self.client.session_transaction() as session:
+            self.assertEqual(session['_user_id'], str(self.user_id))
+            self.assertFalse(session['_fresh'])
+
+    def test_blocked_account_cannot_keep_using_an_existing_session(self):
+        self.login()
+        with self.app.app_context():
+            db.session.get(User, self.user_id).is_active = False
+            db.session.commit()
+        response = self.client.get('/account/')
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('/auth/login', response.location)
+        response = self.client.post(f'/cart/add/{self.product_id}', data={'quantity': '1'})
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('/auth/login', response.location)
+        with self.app.app_context():
+            self.assertEqual(CartItem.query.filter_by(user_id=self.user_id).count(), 0)
+
+    def test_password_change_preserves_intended_spaces(self):
+        self.login()
+        password = '  a new exact password  '
+        response = self.client.post('/account/settings', data={
+            'username': 'buyer',
+            'old_password': 'a-long-test-password',
+            'new_password': password,
+            'confirm_password': password,
+        })
+        self.assertEqual(response.status_code, 200)
+        with self.app.app_context():
+            user = db.session.get(User, self.user_id)
+            self.assertTrue(user.check_password(password))
+            self.assertFalse(user.check_password(password.strip()))
+
+    def test_product_validation_rejects_values_that_cannot_be_ordered(self):
+        with self.app.app_context():
+            valid = {
+                'name': 'Тестовый товар', 'price': '100', 'stock': '2',
+                'category_id': str(self.category_id),
+            }
+            cases = (
+                {'old_price': 'NaN'},
+                {'old_price': 'не число'},
+                {'stock': str(2 ** 63)},
+                {'category_id': str(2 ** 63)},
+                {'color_options': 'а' * 81},
+                {'size_options': 'а' * 41},
+            )
+            for invalid in cases:
+                with self.subTest(invalid=invalid):
+                    values, errors = parse_product_form({**valid, **invalid})
+                    self.assertIsNone(values)
+                    self.assertTrue(errors)
+            values, errors = parse_product_form(valid)
+            self.assertFalse(errors)
+            self.assertEqual(values['stock'], 2)
+
+    def test_checkout_shares_contact_fields_between_delivery_methods(self):
+        self.login()
+        self.client.post(f'/cart/add/{self.product_id}', data={'quantity': '1'})
+        response = self.client.get('/cart/checkout')
+        self.assertEqual(response.status_code, 200)
+        html = response.get_data(as_text=True)
+        contact_start = html.index('id="checkout-contact"')
+        self.assertGreater(contact_start, html.index('id="section-pickup"'))
+        self.assertGreater(html.index('id="courier-phone"'), contact_start)
+        self.assertGreater(html.index('id="courier-comment"'), contact_start)
+        self.assertEqual(html.count('id="courier-phone"'), 1)
 
     def test_variant_items_can_coexist_and_cannot_oversell(self):
         self.login()

@@ -92,19 +92,9 @@
     <div id="section-courier" class="bg-white rounded-3 p-4 shadow-sm mb-4">
       <h5 class="fw-bold mb-3"><i class="bi bi-geo-alt me-2 text-wb"></i>Адрес доставки</h5>
       <div class="mb-3">
-        <label class="form-label">Адрес <span class="text-danger">*</span></label>
+        <label class="form-label" for="courier-address">Адрес <span class="text-danger">*</span></label>
         <textarea class="form-control" id="courier-address" rows="2"
                   placeholder="Город, улица, дом, квартира">{{ current_user.address or '' }}</textarea>
-      </div>
-      <div class="mb-3">
-        <label class="form-label">Телефон</label>
-        <input type="tel" class="form-control" id="courier-phone"
-               value="{{ current_user.phone or '' }}" placeholder="+7 (999) 999-99-99">
-      </div>
-      <div class="mb-3">
-        <label class="form-label">Комментарий к заказу</label>
-        <textarea class="form-control" id="courier-comment" rows="2"
-                  placeholder="Время доставки, инструкции для курьера..."></textarea>
       </div>
     </div>
 
@@ -176,6 +166,21 @@
       <input type="text" class="form-control mt-3" id="pvz-address-display" readonly
              placeholder="Адрес ПВЗ подставится после выбора на карте"
              style="background:#f8f9fa;cursor:default">
+    </div>
+
+    <div id="checkout-contact" class="bg-white rounded-3 p-4 shadow-sm mb-4">
+      <h5 class="fw-bold mb-3">Контактные данные</h5>
+      <div class="mb-3">
+        <label class="form-label" for="courier-phone">Телефон <span class="text-danger">*</span></label>
+        <input type="tel" class="form-control" id="courier-phone" required maxlength="20"
+               autocomplete="tel" value="{{ current_user.phone or '' }}"
+               placeholder="+7 (999) 999-99-99">
+      </div>
+      <div>
+        <label class="form-label" for="courier-comment">Комментарий к заказу</label>
+        <textarea class="form-control" id="courier-comment" rows="2" maxlength="2000"
+                  placeholder="Дополнительная информация к заказу"></textarea>
+      </div>
     </div>
 
     {# ── Оплата ── #}
