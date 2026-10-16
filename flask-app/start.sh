@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR"
 
@@ -11,13 +12,13 @@ if [ -z "${SESSION_SECRET:-}" ]; then
 fi
 
 if [ "${APP_ENV}" = "production" ] || [ "${APP_ENV}" = "staging" ]; then
-    if [ -z "${FLASK_DATABASE_URL:-}${MYSQL_URL:-}${MYSQL_HOST:-}" ]; then
-        echo "ERROR: configure FLASK_DATABASE_URL or MYSQL_URL for a persistent production database." >&2
+    if [ -z "${FLASK_DATABASE_URL:-}" ] && [ "${FLASK_DATABASE_SOURCE:-}" != "replit" ]; then
+        echo "ERROR: configure FLASK_DATABASE_URL or FLASK_DATABASE_SOURCE=replit." >&2
         exit 1
     fi
-    database_url="${FLASK_DATABASE_URL:-${MYSQL_URL:-}}"
-    if [[ "${database_url,,}" == sqlite:* ]]; then
-        echo "ERROR: SQLite is not supported for production; configure a persistent server database." >&2
+    database_url="${FLASK_DATABASE_URL:-}"
+    if [ -n "$database_url" ] && [[ "$database_url" != postgres://* && "$database_url" != postgresql://* && "$database_url" != postgresql+psycopg2://* ]]; then
+        echo "ERROR: WildMarket requires PostgreSQL." >&2
         exit 1
     fi
 fi

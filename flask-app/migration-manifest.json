@@ -1,0 +1,14 @@
+{
+  "backup_object": ".private/database-backups/wildmarket-20261015T202309835769Z.sqlite",
+  "backup_sha256": "ba534656997036a11909fe8f2f4861abe8e43c4fb753b31220bacc87505d63b3",
+  "tables": {
+    "categories": {"rows": 14, "sha256": "1a8908419394a53e932696e59df743750396b73c5955e6f36ffa65baf445f6d6"},
+    "users": {"rows": 7, "sha256": "9572fe5b272157fc66d1ff2222d3606801c1bddd6e984828fdf91a099a4d3b35"},
+    "orders": {"rows": 2, "sha256": "78daa7342309b2a6fb7578b654d71c9f87cf7a29c97f7fb5592bbbec21bde412"},
+    "products": {"rows": 13, "sha256": "6447a179db26615a027a01883c86d69822b2da87ca5a2975087f5197003aa628"},
+    "cart_items": {"rows": 2, "sha256": "44dba7dc0c747c7d38bf5415fb07b41ead700a27e913e620af4282240521e3ab"},
+    "favorites": {"rows": 0, "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"},
+    "order_items": {"rows": 2, "sha256": "20c97b94caa170f0b98294bd84133a12f7da41c22687720472c1bf9c5413dd34"},
+    "reviews": {"rows": 0, "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"}
+  }
+}

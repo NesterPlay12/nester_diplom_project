@@ -1,26 +1,34 @@
 import os
-from urllib.parse import quote_plus
+import re
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 
 
 def _get_db_url():
-    url = os.environ.get('FLASK_DATABASE_URL') or os.environ.get('MYSQL_URL')
-    if not url and os.environ.get('MYSQL_HOST'):
-        user = quote_plus(os.environ.get('MYSQL_USER', ''))
-        password = quote_plus(os.environ.get('MYSQL_PASSWORD', ''))
-        host = os.environ['MYSQL_HOST']
-        database = os.environ.get('MYSQL_DB', 'wildmarket')
-        credentials = f'{user}:{password}@' if user else ''
-        url = f'mysql+pymysql://{credentials}{host}/{database}?charset=utf8mb4'
+    url = os.environ.get('FLASK_DATABASE_URL')
+    # Explicit owner-approved bridge to the managed database. Never change the
+    # Node service's DATABASE_URL or copy its credential into another secret.
+    if not url and os.environ.get('FLASK_DATABASE_SOURCE') == 'replit':
+        url = os.environ.get('DATABASE_URL')
     if not url:
-        url = f'sqlite:///{os.path.join(BASE_DIR, "..", "wildberries.db")}'
+        raise RuntimeError('Configure FLASK_DATABASE_URL or FLASK_DATABASE_SOURCE=replit.')
     # Normalize provider URL spellings for SQLAlchemy.
     if url.startswith('postgres://'):
         url = url.replace('postgres://', 'postgresql://', 1)
-    elif url.startswith('mysql://'):
-        url = url.replace('mysql://', 'mysql+pymysql://', 1)
+    if not url.startswith(('postgresql://', 'postgresql+psycopg2://')):
+        raise RuntimeError('WildMarket requires PostgreSQL. SQLite and MySQL are disabled.')
     return url
+
+
+def _engine_options():
+    schema = os.environ.get('FLASK_DATABASE_SCHEMA', 'wildmarket')
+    if not re.fullmatch(r'[a-z_][a-z0-9_]*', schema):
+        raise RuntimeError('Invalid FLASK_DATABASE_SCHEMA.')
+    return {
+        'pool_pre_ping': True,
+        'pool_recycle': 300,
+        'connect_args': {'options': f'-csearch_path={schema}'},
+    }
 
 
 class Config:
@@ -30,10 +38,9 @@ class Config:
     )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_DATABASE_URI = _get_db_url()
-    SQLALCHEMY_ENGINE_OPTIONS = {
-        'pool_pre_ping': True,
-        'pool_recycle': 300,
-    }
+    SQLALCHEMY_ENGINE_OPTIONS = _engine_options()
+    # Managed production schema is applied by Publish, never by web workers.
+    AUTO_INIT_SCHEMA = False
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = 'Lax'
     SESSION_COOKIE_SECURE = ENVIRONMENT in ('production', 'staging')

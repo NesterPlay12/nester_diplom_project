@@ -2,6 +2,7 @@
 import getpass
 import re
 import sys
+import argparse
 
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
@@ -43,6 +44,35 @@ def create_admin():
 
 
 if __name__ == '__main__':
-    if len(sys.argv) != 2 or sys.argv[1] != 'create-admin':
-        raise SystemExit('Usage: python manage.py create-admin')
-    create_admin()
+    parser = argparse.ArgumentParser(description=__doc__)
+    commands = parser.add_subparsers(dest='command', required=True)
+    commands.add_parser('create-admin')
+    commands.add_parser('init-schema', help='Development schema only; never run on production')
+    commands.add_parser('restore-development', help='Restore verified backup only into empty development PG')
+    transfer = commands.add_parser('import-sqlite', help='Development-only lossless import')
+    transfer.add_argument('source')
+    transfer.add_argument('--backup-dir', default='../generated-artifacts/database-backups')
+    args = parser.parse_args()
+    if args.command == 'create-admin':
+        create_admin()
+    else:
+        from app.services.database_transfer import require_development, transfer_sqlite, restore_development
+        require_development()
+        app = create_app({'TESTING': args.command == 'init-schema'})
+        with app.app_context():
+            if args.command == 'init-schema':
+                from app import _database_initialization_lock, _run_migrations
+                from sqlalchemy import text
+                import os
+                schema = os.environ.get('FLASK_DATABASE_SCHEMA', 'wildmarket')
+                with db.engine.begin() as connection:
+                    connection.execute(text(f'CREATE SCHEMA IF NOT EXISTS "{schema}"'))
+                with _database_initialization_lock():
+                    db.create_all()
+                    _run_migrations()
+                print('Development schema initialized.')
+            elif args.command == 'restore-development':
+                from pathlib import Path
+                restore_development(Path(__file__).parent / 'migration-manifest.json')
+            else:
+                transfer_sqlite(args.source, args.backup_dir)

@@ -4,7 +4,7 @@
 
 ## Запуск
 
-- **Flask-приложение**: воркфлоу `WildMarket (Flask)` — порт 8000
+- **Flask-приложение**: управляемый воркфлоу `artifacts/wildmarket: web` — Gunicorn; старый `WildMarket (Flask)` остановлен
 - `cd flask-app && python manage.py create-admin` — создать администратора с интерактивным вводом пароля
 - `cd flask-app && python seed.py --demo` — создать демонстрационные данные для локальной разработки
 - `cd flask-app && python run.py` — запустить вручную
@@ -15,7 +15,7 @@
 - Python 3.11
 - Flask 3.x + Flask-SQLAlchemy + Flask-Login
 - Flask-WTF CSRF protection
-- SQLite (по умолчанию) / MySQL (через PyMySQL)
+- PostgreSQL (единственная рабочая БД, драйвер psycopg2)
 - Bootstrap 5 (CDN)
 - Werkzeug (хэширование паролей)
 
@@ -28,17 +28,30 @@
 - `flask-app/app/static/` — CSS и JS
 - `flask-app/seed.py` — локальные демонстрационные данные (не запускаются приложением)
 - `flask-app/manage.py` — административные команды
-- `flask-app/wildberries.db` — SQLite база данных
+- `flask-app/migration-manifest.json` — контрольные суммы полного переноса и путь к закрытой резервной копии
 
 ## База данных
 
-**Для локальной разработки**: SQLite (`flask-app/wildberries.db`).
+**Только PostgreSQL**, включая разработку. SQLite/MySQL в конфигурации приложения запрещены; SQLite используется лишь как формат аварийного снимка и в изолированных регрессионных тестах.
 
-**Для production**: подключить постоянную базу через `FLASK_DATABASE_URL` (приоритет), `MYSQL_URL` или `MYSQL_HOST`/`MYSQL_USER`/`MYSQL_PASSWORD`/`MYSQL_DB`. Локальный SQLite не подходит для autoscale deployment.
-```
-mysql+pymysql://user:password@localhost/wildberries?charset=utf8mb4
-```
-Production также требует `SESSION_SECRET`. Приложение не создаёт пользователей и демонстрационные товары при старте. Первый аккаунт администратора создаётся вручную командой `python manage.py create-admin`.
+Владелец согласовал полный перенос **всех** существующих данных без исключений, затем удаление старой рабочей SQLite. Перенесены все 8 таблиц, включая 7 пользователей, 14 категорий, 13 товаров, 2 заказа, 2 позиции заказов и 2 позиции корзины. Идентификаторы, хэши паролей, даты, NULL и связи сохранены; последовательности PostgreSQL выставлены для новых записей.
+
+Для отдельного внешнего PostgreSQL используется секрет `FLASK_DATABASE_URL` (наивысший приоритет). В текущем проекте владелец выбрал управляемый PostgreSQL Replit: явная настройка `FLASK_DATABASE_SOURCE=replit` разрешает приложению использовать текущую управляемую строку подключения `DATABASE_URL`, не изменяя её и не дублируя секрет. Без явной настройки подключение не выбирается автоматически.
+
+`FLASK_DATABASE_SCHEMA=wildmarket` изолирует Flask от таблиц Node-сервиса. `search_path` не включает `public`. Node-сервис продолжает использовать прежнюю конфигурацию.
+
+Управление схемой выполняется **только в development**:
+- `APP_ENV=development python flask-app/manage.py init-schema` — идемпотентная подготовка/обновление схемы.
+- `APP_ENV=development python flask-app/manage.py restore-development` — восстановить проверенный снимок из закрытого App Storage **только если PostgreSQL пуст**; существующие записи не перезаписываются.
+- Обе команды выполняются после слияния в `scripts/post-merge.sh`. Ни сборка deployment, ни Gunicorn не выполняют DDL. Схема управляемой production-БД применяется штатным Publish, только по отдельному решению владельца.
+
+Резервная копия находится в **закрытом** App Storage по пути из migration-manifest.json. Она скачана обратно, проверена по SHA-256 и восстановлена в отдельную схему PostgreSQL со сверкой всех полей. Нельзя выставлять ей публичный ACL или добавлять её в Git. Локальные отчёты и временные копии исключены из Git/deployment через `generated-artifacts/`.
+
+Production требует `SESSION_SECRET` и **блокируется при наличии активных известных демонстрационных аккаунтов**. При полном переносе они сохранены по требованию владельца; перед публикацией владелец должен согласовать их деактивацию или замену безопасными реальными аккаунтами. Приложение не создаёт пользователей и демонстрационные товары при старте. Первый реальный администратор создаётся вручную командой `python manage.py create-admin`.
+
+Проверка реального staging без изменения рабочей БД:
+`cd flask-app && APP_ENV=development python tests/postgres_staging_smoke.py`
+Она клонирует данные в изолированную PostgreSQL-схему, запускает Gunicorn с `APP_ENV=staging`, проверяет CSRF, secure cookie, регистрацию, повторный вход, заказ и уменьшение остатка, затем удаляет тестовую схему.
 
 ## Функционал
 
@@ -66,14 +79,14 @@ Production также требует `SESSION_SECRET`. Приложение не
 ## Архитектурные решения
 
 - Flask Blueprints — каждый раздел в отдельном модуле
-- Flask-SQLAlchemy ORM — поддержка SQLite и MySQL через одну конфигурацию
+- Flask-SQLAlchemy ORM — PostgreSQL, отдельная схема WildMarket
 - Flask-Login — сессии и защита маршрутов через декораторы
 - Jinja2 шаблоны — наследование от base.html, admin/dashboard.html
 - Bootstrap 5 из CDN — без сборщика, максимальная простота
 
 ## Gotchas
 
-- Не использовать переменную `DATABASE_URL` (она занята Node.js API) — для Flask использовать `FLASK_DATABASE_URL`
+- Не менять `DATABASE_URL` Node.js API. Flask: отдельный `FLASK_DATABASE_URL` либо явный `FLASK_DATABASE_SOURCE=replit`, обязательно с отдельной схемой.
 - Демонстрационные данные создавать только вручную для локальной разработки
 - Admin-панель доступна ролям `admin` и `moderator`; назначать роль администратора может только `admin`
 - Seller-панель доступна для ролей `seller` и `admin`
@@ -81,5 +94,5 @@ Production также требует `SESSION_SECRET`. Приложение не
 
 ## User preferences
 
-- Стек: Python / Flask / MySQL (SQLite для разработки)
+- Стек: Python / Flask / PostgreSQL; только PostgreSQL для рабочих данных
 - Язык интерфейса: русский

@@ -23,6 +23,8 @@ class MarketplaceTestCase(unittest.TestCase):
             'ENVIRONMENT': 'testing',
             'SECRET_KEY': 'test-only-session-secret',
             'SQLALCHEMY_DATABASE_URI': f'sqlite:///{database_path}',
+            'SQLALCHEMY_ENGINE_OPTIONS': {},
+            'AUTO_INIT_SCHEMA': True,
         })
         self.client = self.app.test_client()
         with self.app.app_context():
@@ -352,6 +354,7 @@ class MarketplaceTestCase(unittest.TestCase):
             'ENVIRONMENT': 'testing',
             'SECRET_KEY': 'csrf-test-secret',
             'SQLALCHEMY_DATABASE_URI': f"sqlite:///{os.path.join(self.temp_dir.name, 'csrf.sqlite')}",
+            'SQLALCHEMY_ENGINE_OPTIONS': {},
         })
         response = secure_app.test_client().post('/auth/login', data={
             'email': 'buyer@example.test',
@@ -367,14 +370,28 @@ class MarketplaceTestCase(unittest.TestCase):
                 'SQLALCHEMY_DATABASE_URI': 'sqlite:///:memory:',
             })
 
-    def test_mysql_urls_select_the_installed_pymysql_driver(self):
+    def test_legacy_databases_are_rejected(self):
+        for url in ('mysql://db.example.test/wildmarket', 'sqlite:///:memory:'):
+            with patch.dict(os.environ, {'FLASK_DATABASE_URL': url}):
+                with self.assertRaisesRegex(RuntimeError, 'requires PostgreSQL'):
+                    _get_db_url()
+
+    def test_managed_database_requires_explicit_opt_in(self):
+        with patch.dict(os.environ, {'DATABASE_URL': 'postgresql://example.test/db'}, clear=True):
+            with self.assertRaisesRegex(RuntimeError, 'Configure FLASK_DATABASE_URL'):
+                _get_db_url()
         with patch.dict(os.environ, {
-            'FLASK_DATABASE_URL': 'mysql://test-user:test-password@db.example.test/wildmarket',
+            'DATABASE_URL': 'postgresql://example.test/db',
+            'FLASK_DATABASE_SOURCE': 'replit',
+        }, clear=True):
+            self.assertEqual(_get_db_url(), 'postgresql://example.test/db')
+
+    def test_explicit_flask_url_takes_priority(self):
+        with patch.dict(os.environ, {
+            'FLASK_DATABASE_URL': 'postgres://flask.example.test/db',
+            'DATABASE_URL': 'postgresql://node.example.test/db',
         }):
-            self.assertEqual(
-                _get_db_url(),
-                'mysql+pymysql://test-user:test-password@db.example.test/wildmarket',
-            )
+            self.assertEqual(_get_db_url(), 'postgresql://flask.example.test/db')
 
     def test_legacy_user_rows_survive_schema_upgrade(self):
         database_path = os.path.join(self.temp_dir.name, 'legacy.sqlite')
@@ -404,6 +421,8 @@ class MarketplaceTestCase(unittest.TestCase):
             'ENVIRONMENT': 'testing',
             'SECRET_KEY': 'migration-test-secret',
             'SQLALCHEMY_DATABASE_URI': f'sqlite:///{database_path}',
+            'SQLALCHEMY_ENGINE_OPTIONS': {},
+            'AUTO_INIT_SCHEMA': True,
         })
         with legacy_app.app_context():
             migrated = db.session.get(User, 44)

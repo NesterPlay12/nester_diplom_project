@@ -72,11 +72,11 @@ def add_to_cart(product_id):
             409, product_id,
         )
 
-    existing = CartItem.query.filter_by(
-        user_id=current_user.id,
-        product_id=product_id,
-        selected_color=selected_color,
-        selected_size=selected_size,
+    existing = CartItem.query.filter(
+        CartItem.user_id == current_user.id,
+        CartItem.product_id == product_id,
+        db.func.coalesce(CartItem.selected_color, '') == selected_color,
+        db.func.coalesce(CartItem.selected_size, '') == selected_size,
     ).first()
     if existing:
         existing.quantity += quantity

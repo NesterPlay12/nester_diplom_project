@@ -73,10 +73,37 @@ def create_app(config_overrides=None):
     app.register_blueprint(admin_bp, url_prefix='/admin')
     app.register_blueprint(delivery_bp)
 
-    with app.app_context():
-        with _database_initialization_lock():
-            db.create_all()
-            _run_migrations()
+    if app.config.get('AUTO_INIT_SCHEMA'):
+        if app.config.get('ENVIRONMENT') in ('production', 'staging'):
+            raise RuntimeError('Schema initialization is disabled in production and staging.')
+        with app.app_context():
+            with _database_initialization_lock():
+                db.create_all()
+                _run_migrations()
+    elif not app.config.get('TESTING'):
+        with app.app_context():
+            inspector = inspect(db.engine)
+            for table in db.metadata.sorted_tables:
+                if not inspector.has_table(table.name):
+                    raise RuntimeError(
+                        'Database schema is not initialized. Initialize development '
+                        'with manage.py init-schema; managed production uses Publish.'
+                    )
+                present = {column['name'] for column in inspector.get_columns(table.name)}
+                if not set(table.c.keys()).issubset(present):
+                    raise RuntimeError('Database schema is outdated; apply the approved schema update.')
+
+    if app.config.get('ENVIRONMENT') == 'production':
+        # Preserve imported demo records, but never publish usable demo logins.
+        from .services.database_transfer import DEMO_EMAILS
+        with app.app_context():
+            if User.query.filter(
+                db.func.lower(User.email).in_(DEMO_EMAILS),
+                User.is_active.is_(True),
+            ).first():
+                raise RuntimeError(
+                    'Active demo accounts exist. Secure or deactivate them before production.'
+                )
 
     # Передаём флаг Google OAuth во все шаблоны
     @app.context_processor

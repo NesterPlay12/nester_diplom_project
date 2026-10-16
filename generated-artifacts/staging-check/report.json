@@ -1,0 +1,10 @@
+{
+  "gunicorn_staging": true,
+  "csrf_enforced": true,
+  "registration": true,
+  "fresh_session_login": true,
+  "checkout_persisted": true,
+  "stock_decremented_once": true,
+  "sequence_ids_after_import": true,
+  "working_database_unchanged": true
+}

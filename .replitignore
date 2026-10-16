@@ -7,3 +7,6 @@ flask-app/wildberries.db
 flask-app/*.schema.lock
 **/__pycache__
 **/*.py[cod]
+/generated-artifacts/
+flask-app/*.db
+flask-app/*.db-*
