@@ -53,5 +53,7 @@ Thumbs.db
 .cache/
 .local/
 /generated-artifacts/
+*.dump
+*.pgdump
 flask-app/*.db
 flask-app/*.db-*
