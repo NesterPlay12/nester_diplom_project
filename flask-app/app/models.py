@@ -6,6 +6,24 @@ from werkzeug.security import generate_password_hash, check_password_hash
 db = SQLAlchemy()
 
 
+class DemoPickupPoint(db.Model):
+    """Persistent overrides/additions to the address-linked demo catalogue."""
+    __tablename__ = 'demo_pickup_points'
+    id = db.Column(db.String(64), primary_key=True)
+    city = db.Column(db.String(120), nullable=False)
+    name = db.Column(db.String(160), nullable=False)
+    address = db.Column(db.String(500), nullable=False)
+    lat = db.Column(db.Float, nullable=False)
+    lng = db.Column(db.Float, nullable=False)
+    work_time = db.Column(db.String(200), nullable=False)
+    is_active = db.Column(db.Boolean, nullable=False, default=True)
+    __table_args__ = (
+        db.UniqueConstraint('city', 'address', name='uq_demo_pickup_city_address'),
+        db.CheckConstraint('lat >= -90 AND lat <= 90', name='ck_demo_pickup_lat'),
+        db.CheckConstraint('lng >= -180 AND lng <= 180', name='ck_demo_pickup_lng'),
+    )
+
+
 class User(UserMixin, db.Model):
     __tablename__ = 'users'
     id = db.Column(db.Integer, primary_key=True)

@@ -112,11 +112,15 @@
       {# Поиск города #}
       <div class="d-flex gap-2 mb-3">
         <div class="flex-grow-1">
+          {% set demo_cities = demo_pickup_cities() if delivery_demo_mode else [] %}
           <input type="text" class="form-control" id="pvz-city"
-                 value="Москва" aria-label="Город пункта выдачи"
+                 value="{{ ('Москва' if 'Москва' in demo_cities else demo_cities|first|default('')) if delivery_demo_mode else 'Москва' }}" aria-label="Город пункта выдачи"
                  placeholder="Введите город, например: Москва"
                  list="city-suggestions">
           <datalist id="city-suggestions">
+            {% if delivery_demo_mode %}
+            {% for city in demo_cities %}<option value="{{ city }}">{% endfor %}
+            {% else %}
             <option value="Москва"><option value="Санкт-Петербург">
             <option value="Новосибирск"><option value="Екатеринбург">
             <option value="Казань"><option value="Нижний Новгород">
@@ -124,6 +128,7 @@
             <option value="Омск"><option value="Самара">
             <option value="Ростов-на-Дону"><option value="Уфа">
             <option value="Волгоград"><option value="Пермь"><option value="Воронеж">
+            {% endif %}
           </datalist>
         </div>
         <button class="btn btn-wb px-4 fw-semibold" type="button" id="btn-search-pvz">

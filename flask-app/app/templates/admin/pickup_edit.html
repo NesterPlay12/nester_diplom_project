@@ -1,0 +1,60 @@
+{% extends 'admin/dashboard.html' %}
+{% block page_title %}{{ 'Изменить' if editing else 'Добавить' }} демонстрационный ПВЗ{% endblock %}
+{% block admin_content %}
+<div class="alert alert-info">Только демонстрация, не для реальной доставки. Укажите настоящий адрес здания и соответствующее положение на карте.</div>
+{% if errors %}
+<div class="alert alert-danger" role="alert"><ul class="mb-0">{% for error in errors %}<li>{{ error }}</li>{% endfor %}</ul></div>
+{% endif %}
+<form method="post" class="bg-white rounded-3 p-3 p-md-4 shadow-sm">
+    {% include '_csrf_field.html' %}
+    <div class="row g-3">
+        <div class="col-md-5">
+            <label class="form-label" for="point-city">Город</label>
+            <input id="point-city" name="city" value="{{ point.city }}" required maxlength="120" class="form-control" placeholder="Например, Казань">
+        </div>
+        <div class="col-md-7">
+            <label class="form-label" for="point-name">Название</label>
+            <input id="point-name" name="name" value="{{ point.name }}" required maxlength="160" class="form-control">
+        </div>
+        <div class="col-12">
+            <label class="form-label" for="point-address">Адрес здания</label>
+            <div class="d-flex flex-wrap gap-2">
+                <input id="point-address" name="address" value="{{ point.address }}" required maxlength="500" class="form-control flex-grow-1" style="flex-basis:240px" placeholder="Улица, дом">
+                <button type="button" id="point-locate" data-geocode-url="{{ url_for('admin_pickup.geocode') }}" class="btn btn-outline-primary">Найти адрес на карте</button>
+            </div>
+            <div class="form-text">Введите город и адрес, затем найдите здание на карте. Или щёлкните по нужному зданию — адрес и координаты заполнятся вместе.</div>
+        </div>
+        <div class="col-12">
+            <div id="point-map" style="height:300px;border-radius:12px;overflow:hidden" aria-label="Положение демонстрационного ПВЗ"></div>
+            <div id="point-map-status" role="status" aria-live="polite" class="small text-muted mt-2">Загрузка карты…</div>
+            <div class="small text-muted mt-1">Поиск адресов: OpenStreetMap / Nominatim, <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© участники OpenStreetMap, ODbL</a>.</div>
+        </div>
+        <div class="col-sm-6">
+            <label class="form-label" for="point-lat">Широта</label>
+            <input id="point-lat" name="lat" value="{{ point.lat }}" required type="number" step="any" min="-90" max="90" class="form-control">
+        </div>
+        <div class="col-sm-6">
+            <label class="form-label" for="point-lng">Долгота</label>
+            <input id="point-lng" name="lng" value="{{ point.lng }}" required type="number" step="any" min="-180" max="180" class="form-control">
+        </div>
+        <div class="col-12">
+            <label class="form-label" for="point-hours">Режим работы / примечание</label>
+            <input id="point-hours" name="work_time" value="{{ point.work_time }}" required maxlength="200" class="form-control">
+        </div>
+        <div class="col-12">
+            <div class="form-check">
+                <input id="point-active" name="is_active" type="checkbox" class="form-check-input" {% if point.is_active %}checked{% endif %}>
+                <label class="form-check-label" for="point-active">Доступен на карте для новых демонстрационных заказов</label>
+            </div>
+        </div>
+        <div class="col-12 d-flex gap-2 flex-wrap">
+            <button class="btn btn-wb">Сохранить ПВЗ</button>
+            <a href="{{ url_for('admin_pickup.index') }}" class="btn btn-outline-secondary">Отмена</a>
+        </div>
+    </div>
+</form>
+{% endblock %}
+{% block extra_scripts %}
+<script src="https://api-maps.yandex.ru/2.1/?lang=ru_RU{% if yandex_maps_api_key %}&apikey={{ yandex_maps_api_key }}{% endif %}"></script>
+<script src="{{ url_for('static', filename='js/admin-pickup.js') }}"></script>
+{% endblock %}

@@ -6,6 +6,8 @@ Data attribution: https://www.openstreetmap.org/copyright (ODbL).
 """
 import hashlib
 import random
+from flask import has_app_context
+from ..models import DemoPickupPoint
 
 _LOCATIONS = {
     'Москва': [
@@ -74,28 +76,47 @@ _LOCATIONS = {
 }
 
 
-def demo_points(city):
+def normalize_city(city):
     normalized = ' '.join(city.casefold().replace('ё', 'е').split())
-    normalized = {'спб': 'санкт-петербург', 'петербург': 'санкт-петербург'}.get(
-        normalized, normalized,
-    )
-    chosen = next((name for name in _LOCATIONS if name.casefold() == normalized), None)
-    if not chosen:
-        return []
-    points = []
-    for address, lat, lng in _LOCATIONS[chosen]:
-        full_address = f'{chosen}, {address}'
-        identifier = hashlib.sha256(full_address.encode()).hexdigest()[:16]
-        points.append({
-            'id': f'demo-{identifier}', 'provider': 'demo',
-            'name': 'Демонстрационный пункт WildMarket',
-            'address': full_address, 'lat': lat, 'lng': lng,
-            'work_time': 'Демо: реальная выдача посылок не производится',
-            'is_demo': True,
-        })
+    return {'спб': 'санкт-петербург', 'петербург': 'санкт-петербург'}.get(normalized, normalized)
+
+
+def managed_catalog():
+    """Defaults remain until explicitly overridden; disabled defaults never reappear."""
+    points = {}
+    for city, locations in _LOCATIONS.items():
+        for address, lat, lng in locations:
+            full_address = f'{city}, {address}'
+            identifier = hashlib.sha256(full_address.encode()).hexdigest()[:16]
+            point_id = f'demo-{identifier}'
+            points[point_id] = {
+                'id': point_id, 'provider': 'demo', 'city': city,
+                'name': 'Демонстрационный пункт WildMarket',
+                'address': full_address, 'lat': lat, 'lng': lng,
+                'work_time': 'Демо: реальная выдача посылок не производится',
+                'is_demo': True, 'is_active': True,
+            }
+    if has_app_context():
+        for row in DemoPickupPoint.query.all():
+            points[row.id] = {
+                'id': row.id, 'provider': 'demo', 'city': row.city,
+                'name': row.name, 'address': row.address, 'lat': row.lat, 'lng': row.lng,
+                'work_time': row.work_time, 'is_demo': True, 'is_active': row.is_active,
+            }
+    return points
+
+
+def demo_points(city):
+    normalized = normalize_city(city)
+    points = [
+        point for point in managed_catalog().values()
+        if point['is_active'] and normalize_city(point['city']) == normalized
+    ]
     random.SystemRandom().shuffle(points)
     return points
 
 
 def supported_cities():
-    return list(_LOCATIONS)
+    return sorted({
+        point['city'] for point in managed_catalog().values() if point['is_active']
+    })

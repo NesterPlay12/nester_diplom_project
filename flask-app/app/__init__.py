@@ -62,6 +62,7 @@ def create_app(config_overrides=None):
     from .routes.account import account_bp
     from .routes.seller import seller_bp
     from .routes.admin import admin_bp
+    from .routes.admin_pickup import admin_pickup_bp
     from .routes.delivery import delivery_bp
 
     app.register_blueprint(main_bp)
@@ -71,6 +72,7 @@ def create_app(config_overrides=None):
     app.register_blueprint(account_bp, url_prefix='/account')
     app.register_blueprint(seller_bp, url_prefix='/seller')
     app.register_blueprint(admin_bp, url_prefix='/admin')
+    app.register_blueprint(admin_pickup_bp, url_prefix='/admin/pickup-points')
     app.register_blueprint(delivery_bp)
 
     if app.config.get('AUTO_INIT_SCHEMA'):
@@ -108,7 +110,9 @@ def create_app(config_overrides=None):
     # Передаём флаг Google OAuth во все шаблоны
     @app.context_processor
     def inject_google_oauth():
+        from .services.demo_pickup import supported_cities
         return {
+            'demo_pickup_cities': supported_cities,
             'google_oauth_enabled': bool(
                 app.config.get('GOOGLE_OAUTH_ENABLED')
                 and app.config.get('GOOGLE_CLIENT_ID') and app.config.get('GOOGLE_CLIENT_SECRET')

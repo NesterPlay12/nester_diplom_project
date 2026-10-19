@@ -399,6 +399,126 @@ class MarketplaceTestCase(unittest.TestCase):
         self.assertIn('cdek', data['unavailable'])
         self.assertIn('pochta', data['unavailable'])
 
+    def _login_pickup_admin(self):
+        with self.app.app_context():
+            db.session.get(User, self.user_id).role = 'admin'
+            db.session.commit()
+        self.login()
+
+    def test_pickup_admin_access_and_csrf(self):
+        self.assertEqual(self.client.get('/admin/pickup-points/').status_code, 302)
+        self.login()
+        self.assertEqual(self.client.get('/admin/pickup-points/').status_code, 403)
+        self.assertEqual(self.client.post('/admin/pickup-points/add').status_code, 403)
+        with self.app.app_context():
+            db.session.get(User, self.user_id).role = 'moderator'
+            db.session.commit()
+        self.assertEqual(self.client.get('/admin/pickup-points/add').status_code, 403)
+        with self.app.app_context():
+            db.session.get(User, self.user_id).role = 'admin'
+            db.session.commit()
+        self.assertEqual(self.client.get('/admin/pickup-points/').status_code, 200)
+        self.app.config['WTF_CSRF_ENABLED'] = True
+        self.assertEqual(self.client.post('/admin/pickup-points/add').status_code, 400)
+
+    def test_pickup_admin_create_edit_disable_reenable_and_duplicate_validation(self):
+        from app.models import DemoPickupPoint
+        from app.services.demo_pickup import demo_points, supported_cities
+        self.app.config['DELIVERY_DEMO_MODE'] = True
+        self._login_pickup_admin()
+        values = {
+            'city': 'Тула', 'name': 'Демонстрационный пункт',
+            'address': 'проспект Ленина, 2', 'lat': '54.193122', 'lng': '37.617348',
+            'work_time': 'Только демонстрация', 'is_active': 'on',
+        }
+        self.assertEqual(self.client.post('/admin/pickup-points/add', data=values).status_code, 302)
+        with self.app.app_context():
+            row = DemoPickupPoint.query.one()
+            point_id = row.id
+            self.assertEqual(row.address, 'Тула, проспект Ленина, 2')
+            self.assertIn('Тула', supported_cities())
+            self.assertEqual(len(demo_points('тула')), 1)
+        values['name'] = 'Обновлённый демо-пункт'
+        values['address'] = 'проспект Ленина, 4'
+        values['lat'] = '54.192'
+        response = self.client.post(f'/admin/pickup-points/{point_id}/edit', data=values)
+        self.assertEqual(response.status_code, 302)
+        points = self.client.get('/delivery/pvz?city=Тула&provider=demo').get_json()['pvz']
+        self.assertEqual(points[0]['id'], point_id)
+        self.assertEqual(points[0]['lat'], 54.192)
+        self.assertEqual(points[0]['name'], values['name'])
+        self.assertEqual(self.client.post('/admin/pickup-points/add', data=values).status_code, 400)
+        self.assertEqual(self.client.post(
+            f'/admin/pickup-points/{point_id}/toggle', data={'active': '0'},
+        ).status_code, 302)
+        self.assertEqual(self.client.get('/delivery/pvz?city=Тула&provider=demo').get_json()['pvz'], [])
+        with self.app.app_context():
+            self.assertNotIn('Тула', supported_cities())
+            self.assertIsNone(delivery.verify_pickup_point('demo', point_id, 'Тула'))
+        self.assertEqual(self.client.post(
+            f'/admin/pickup-points/{point_id}/toggle', data={'active': '1'},
+        ).status_code, 302)
+        self.assertEqual(len(self.client.get('/delivery/pvz?city=Тула&provider=demo').get_json()['pvz']), 1)
+        self.assertEqual(self.client.get(f'/admin/pickup-points/{point_id}/edit').status_code, 200)
+        self.assertEqual(self.client.get('/admin/pickup-points/missing/edit').status_code, 404)
+
+    def test_pickup_default_override_is_persistent_and_bad_coordinates_are_rejected(self):
+        from app.models import DemoPickupPoint
+        from app.services.demo_pickup import demo_points
+        self._login_pickup_admin()
+        with self.app.app_context():
+            original = demo_points('Москва')[0]
+        point_id = original['id']
+        self.client.post(f'/admin/pickup-points/{point_id}/toggle', data={'active': '0'})
+        with self.app.app_context():
+            db.session.remove()
+            self.assertNotIn(point_id, [p['id'] for p in demo_points('Москва')])
+            self.assertEqual(DemoPickupPoint.query.count(), 1)
+        values = dict(original, is_active='on', lat='nan', city='Москва')
+        self.assertEqual(self.client.post(f'/admin/pickup-points/{point_id}/edit', data=values).status_code, 400)
+        for invalid in ('inf', '91', '-91', 'not-a-number', ''):
+            values['lat'] = invalid
+            self.assertEqual(self.client.post(f'/admin/pickup-points/{point_id}/edit', data=values).status_code, 400)
+        values['lat'] = original['lat']
+        values['lng'] = '181'
+        self.assertEqual(self.client.post(f'/admin/pickup-points/{point_id}/edit', data=values).status_code, 400)
+        values['lng'] = original['lng']
+        self.assertEqual(self.client.post(f'/admin/pickup-points/{point_id}/edit', data=values).status_code, 302)
+        with self.app.app_context():
+            self.assertIn(point_id, [p['id'] for p in demo_points('Москва')])
+        self.assertEqual(self.client.post(
+            f'/admin/pickup-points/{point_id}/toggle', data={'active': 'invalid'},
+        ).status_code, 400)
+
+    def test_pickup_address_search_validates_house_and_handles_provider_errors(self):
+        from app.services.pickup_geocoding import locate_building
+        self._login_pickup_admin()
+        result = {
+            'lat': '55.786592', 'lon': '49.1241156',
+            'address': {'city': 'Казань', 'road': 'Петербургская улица', 'house_number': '1'},
+        }
+        with patch('app.services.pickup_geocoding.requests.get') as get, patch('app.services.pickup_geocoding.time.sleep'):
+            get.return_value.json.return_value = [result]
+            response = self.client.post('/admin/pickup-points/geocode', json={
+                'city': 'Казань', 'address': 'Петербургская улица, 1',
+            })
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.get_json()['address'], 'Казань, Петербургская улица, 1')
+            self.assertEqual(response.get_json()['lat'], 55.786592)
+            get.return_value.json.return_value = [dict(result, address=dict(result['address'], house_number='55 лит1'))]
+            self.assertEqual(self.client.post('/admin/pickup-points/geocode', json={
+                'city': 'Казань', 'address': 'Петербургская улица, 1',
+            }).status_code, 400)
+            get.return_value.json.return_value = result
+            self.assertEqual(locate_building({'lat': 55.78, 'lng': 49.12})['city'], 'Казань')
+            get.side_effect = requests.Timeout()
+            response = self.client.post('/admin/pickup-points/geocode', json={
+                'city': 'Казань', 'address': 'Петербургская улица, 1',
+            })
+            self.assertEqual(response.status_code, 503)
+        self.assertEqual(self.client.post('/admin/pickup-points/geocode', json={'lat': 'nan', 'lng': 0}).status_code, 400)
+        self.assertEqual(self.client.post('/admin/pickup-points/geocode', json=[]).status_code, 400)
+
     def test_demo_points_have_stable_address_coordinates_in_all_supported_cities(self):
         from app.services.demo_pickup import demo_points, supported_cities
         self.assertEqual(len(supported_cities()), 15)

@@ -1,0 +1,45 @@
+{% extends 'admin/dashboard.html' %}
+{% block page_title %}Демонстрационные ПВЗ{% endblock %}
+{% block admin_content %}
+<div class="alert alert-info">
+    Это демонстрационные адреса для показа оформления заказа, не действующие пункты операторов.
+    Изменения применяются к карте сразу после сохранения. Ранее оформленные заказы не изменяются.
+</div>
+<div class="d-flex flex-wrap justify-content-between gap-3 mb-3">
+    <form method="get" class="d-flex gap-2">
+        <input name="search" value="{{ search }}" maxlength="160" class="form-control" placeholder="Город, адрес или название" aria-label="Поиск ПВЗ">
+        <button class="btn btn-outline-secondary">Найти</button>
+    </form>
+    <a href="{{ url_for('admin_pickup.edit') }}" class="btn btn-wb">Добавить ПВЗ</a>
+</div>
+<div class="bg-white rounded-3 shadow-sm">
+    <div class="p-3 border-bottom fw-semibold">Пункты выдачи: {{ points|length }}</div>
+    <div class="table-responsive">
+        <table class="table align-middle mb-0">
+            <thead><tr><th>Город и адрес</th><th>Название / режим работы</th><th>Статус</th><th>Действия</th></tr></thead>
+            <tbody>
+                {% for point in points %}
+                <tr>
+                    <td><strong>{{ point.city }}</strong><div class="small">{{ point.address }}</div><small class="text-muted">{{ point.lat }}, {{ point.lng }}</small></td>
+                    <td>{{ point.name }}<div class="small text-muted">{{ point.work_time }}</div><span class="badge text-bg-light border">Демо</span></td>
+                    <td><span class="badge {{ 'text-bg-success' if point.is_active else 'text-bg-secondary' }}">{{ 'Включён' if point.is_active else 'Отключён' }}</span></td>
+                    <td>
+                        <div class="d-flex flex-wrap gap-2">
+                            <a class="btn btn-sm btn-outline-primary" href="{{ url_for('admin_pickup.edit', point_id=point.id) }}">Изменить</a>
+                            <form method="post" action="{{ url_for('admin_pickup.toggle', point_id=point.id) }}"
+                                  {% if point.is_active %}onsubmit="return confirm('Отключить ПВЗ для новых заказов? История заказов сохранится.')" {% endif %}>
+                                {% include '_csrf_field.html' %}
+                                <input type="hidden" name="active" value="{{ '0' if point.is_active else '1' }}">
+                                <button class="btn btn-sm {{ 'btn-outline-danger' if point.is_active else 'btn-outline-success' }}">{{ 'Отключить' if point.is_active else 'Включить' }}</button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="4" class="text-center text-muted p-4">Пункты не найдены.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
