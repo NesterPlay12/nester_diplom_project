@@ -23,10 +23,13 @@
 операторов и доступен для 15 городов из подсказок.
 
 Регистрация по email на wildmarket.su проверена в браузере. Google возвращал
-`redirect_uri_mismatch`: callback `https://wildmarket.su/auth/google/callback`
-нужно разрешить в настройках существующего OAuth-клиента Google. До этой настройки
-кнопка и начало OAuth доступны по требованию владельца. `GOOGLE_OAUTH_ENABLED`
-по умолчанию включён; callback необходимо разрешить и проверить в Google.
+`redirect_uri_mismatch`: владелец разрешил callback
+`https://wildmarket.su/auth/google/callback` в существующем OAuth-клиенте Google.
+Переход с production-домена к форме входа Google проверен: ошибки
+`redirect_uri_mismatch` больше нет. Завершение входа с личным Google-аккаунтом
+автоматической проверкой не подтверждено. Кнопка и начало OAuth доступны по
+требованию владельца. `GOOGLE_OAUTH_ENABLED`
+по умолчанию включён; при смене домена новый callback необходимо разрешить в Google.
 Ключи не заменять. Ошибку Google Console нельзя исправить сменой базы или домена
 в шаблонах приложения.
 
