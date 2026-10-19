@@ -262,5 +262,5 @@ def checkout():
         db.session.delete(item)
 
     db.session.commit()
-    flash(f'Заказ #{order.id} успешно оформлен!', 'success')
+    flash(f'Заказ #{order.id} сохранён в WildMarket. Отправление у перевозчика не создано; стоимость и условия доставки требуют подтверждения.', 'success')
     return redirect(url_for('account.order_detail', order_id=order.id))

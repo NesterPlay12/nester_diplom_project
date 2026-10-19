@@ -2,7 +2,10 @@ import os
 import sqlite3
 import tempfile
 import unittest
-from unittest.mock import patch
+from copy import deepcopy
+from unittest.mock import Mock, patch
+
+import requests
 
 from sqlalchemy import create_engine, inspect
 
@@ -11,6 +14,7 @@ from app import _migrate_cart_variant_constraint
 from app.config import _get_db_url
 from app.models import CartItem, Category, Order, OrderItem, Product, User, db
 from app.services.product_input import parse_product_form
+from app.routes import delivery
 
 
 class MarketplaceTestCase(unittest.TestCase):
@@ -222,6 +226,53 @@ class MarketplaceTestCase(unittest.TestCase):
                 'payment_method': 'cash_on_delivery',
             })
         self.assertEqual(response.status_code, 400)
+        with self.app.app_context():
+            self.assertEqual(Order.query.count(), 0)
+            self.assertEqual(db.session.get(Product, self.product_id).stock, 3)
+            self.assertEqual(CartItem.query.filter_by(user_id=self.user_id).count(), 1)
+
+    def test_pickup_checkout_saves_only_fresh_official_address(self):
+        self.app.config['DELIVERY_DEMO_MODE'] = False
+        self.login()
+        self.client.post(f'/cart/add/{self.product_id}', data={'quantity': '1'})
+        official = DeliveryCatalogTestCase.point()
+        with patch.dict(os.environ, {
+            'CDEK_CLIENT_ID': 'test-client', 'CDEK_CLIENT_SECRET': 'test-secret',
+        }), patch.object(delivery, '_cdek_token', return_value='test-token'), patch.object(
+            delivery, '_cdek_city_code', return_value=1,
+        ), patch.object(delivery.requests, 'get', return_value=DeliveryCatalogTestCase.response([official])) as get:
+            response = self.client.post('/cart/checkout', data={
+                'delivery_type': 'pickup', 'pvz_provider': 'cdek', 'pvz_id': 'TEST1',
+                'pvz_city': 'Тула', 'phone': '+79990000000',
+                'address': 'Подменённый адрес', 'payment_method': 'cash_on_delivery',
+            })
+        self.assertEqual(response.status_code, 302)
+        get.assert_called_once()
+        with self.app.app_context():
+            order = Order.query.one()
+            self.assertIn('Тула, Тестовая улица, 1', order.address)
+            self.assertNotIn('Подменённый', order.address)
+            self.assertEqual(order.status, 'pending')
+            self.assertEqual(db.session.get(Product, self.product_id).stock, 2)
+            self.assertEqual(CartItem.query.filter_by(user_id=self.user_id).count(), 0)
+
+    def test_pickup_checkout_api_outage_does_not_accept_cached_point_or_change_cart(self):
+        self.app.config['DELIVERY_DEMO_MODE'] = False
+        self.login()
+        self.client.post(f'/cart/add/{self.product_id}', data={'quantity': '1'})
+        with patch.dict(os.environ, {
+            'CDEK_CLIENT_ID': 'test-client', 'CDEK_CLIENT_SECRET': 'test-secret',
+        }), patch.object(delivery, '_cdek_token', return_value='test-token'), patch.object(
+            delivery, '_cdek_city_code', return_value=1,
+        ), patch.object(delivery.requests, 'get', side_effect=requests.Timeout()), patch.object(
+            delivery, '_get_cdek_points', return_value=([{'id': 'TEST1'}], None),
+        ) as cached:
+            response = self.client.post('/cart/checkout', data={
+                'delivery_type': 'pickup', 'pvz_provider': 'cdek', 'pvz_id': 'TEST1',
+                'pvz_city': 'Тула', 'phone': '+79990000000', 'payment_method': 'cash_on_delivery',
+            })
+        self.assertEqual(response.status_code, 400)
+        cached.assert_not_called()
         with self.app.app_context():
             self.assertEqual(Order.query.count(), 0)
             self.assertEqual(db.session.get(Product, self.product_id).stock, 3)
@@ -575,6 +626,209 @@ class MarketplaceTestCase(unittest.TestCase):
             for item in unique_constraints
         ))
         engine.dispose()
+
+
+class DeliveryCatalogTestCase(unittest.TestCase):
+    """Synthetic HTTP fixtures only: never used by the application or live catalog."""
+
+    def setUp(self):
+        from flask import Flask
+        app = Flask(__name__)
+        app.config['DELIVERY_DEMO_MODE'] = False
+        context = app.app_context()
+        context.push()
+        self.addCleanup(context.pop)
+        self.env = patch.dict(os.environ, {
+            'CDEK_CLIENT_ID': 'test-client', 'CDEK_CLIENT_SECRET': 'test-secret',
+        })
+        self.env.start()
+        self.addCleanup(self.env.stop)
+        delivery._points_cache.clear()
+        delivery._token_cache.update(token=None, expires_at=0, credentials=None)
+        self.addCleanup(delivery._points_cache.clear)
+        self.addCleanup(lambda: delivery._token_cache.update(
+            token=None, expires_at=0, credentials=None))
+
+    @staticmethod
+    def response(payload):
+        return Mock(json=Mock(return_value=payload), raise_for_status=Mock(), headers={})
+
+    @staticmethod
+    def city(code=1, name='Тула', region='Тульская область', country='RU'):
+        return {'code': code, 'city': name, 'region': region, 'country_code': country}
+
+    @staticmethod
+    def point(code='TEST1'):
+        return {
+            'code': code, 'name': 'Тестовый пункт', 'type': 'PVZ', 'is_handout': True, 'status': 'ACTIVE',
+            'location': {'latitude': 54.2, 'longitude': 37.6, 'city_code': 1,
+                         'country_code': 'RU', 'city': 'Тула', 'region': 'Тульская область',
+                         'address': 'Тестовая улица, 1',
+                         'address_full': 'Тула, Тестовая улица, 1'},
+        }
+
+    def test_city_search_reads_all_pages_before_deciding(self):
+        with patch.object(delivery, '_CITY_PAGE_SIZE', 1), patch.object(
+            delivery.requests, 'get', side_effect=[
+                self.response([self.city(2, 'Тула-2')]),
+                self.response([self.city()]), self.response([]),
+            ],
+        ) as get:
+            self.assertEqual(delivery._cdek_city_code(' ТУЛА ', 'test-token'), 1)
+        self.assertEqual([c.kwargs['params']['page'] for c in get.call_args_list], [0, 1, 2])
+        self.assertTrue(all(c.kwargs['params']['country_codes'] == 'RU' for c in get.call_args_list))
+
+    def test_city_search_never_selects_first_partial_or_foreign_match(self):
+        for rows in ([self.city(name='Тула-2')], [self.city(country='BY')], []):
+            with self.subTest(rows=rows), patch.object(
+                delivery.requests, 'get', return_value=self.response(rows),
+            ):
+                self.assertIsNone(delivery._cdek_city_code('Тула', 'test-token'))
+
+    def test_same_name_cities_require_exact_region(self):
+        rows = [self.city(1, 'Мирный', 'Архангельская область'),
+                self.city(2, 'Мирный', 'Республика Саха (Якутия)')]
+        with patch.object(delivery.requests, 'get', return_value=self.response(rows)):
+            self.assertIsNone(delivery._cdek_city_code('Мирный', 'test-token'))
+            self.assertEqual(delivery._cdek_city_code('мирный, Архангельская область', 'test-token'), 1)
+            self.assertEqual(delivery._cdek_city_code('Мирный, Республика Саха (Якутия)', 'test-token'), 2)
+            self.assertIsNone(delivery._cdek_city_code('Мирный, неизвестный регион', 'test-token'))
+
+    def test_city_later_page_failure_and_repeated_pages_fail_closed(self):
+        for second in (requests.Timeout(), self.response([self.city()])):
+            with self.subTest(second=type(second).__name__), patch.object(
+                delivery, '_CITY_PAGE_SIZE', 1,
+            ), patch.object(delivery.requests, 'get', side_effect=[self.response([self.city()]), second]):
+                self.assertIsNone(delivery._cdek_city_code('Тула', 'test-token'))
+
+    def test_city_page_limit_and_malformed_payload_fail_closed(self):
+        for payload in ({'errors': []}, [None], None):
+            with self.subTest(payload=payload), patch.object(
+                delivery.requests, 'get', return_value=self.response(payload),
+            ):
+                self.assertIsNone(delivery._cdek_city_code('Тула', 'test-token'))
+        with patch.object(delivery, '_CITY_PAGE_SIZE', 1), patch.object(
+            delivery, '_CATALOG_MAX_PAGES', 1,
+        ), patch.object(delivery.requests, 'get', return_value=self.response([self.city()])):
+            self.assertIsNone(delivery._cdek_city_code('Тула', 'test-token'))
+
+    def fetch_points(self, pages, page_size=1000, limit=100):
+        with patch.object(delivery, '_cdek_token', return_value='test-token'), patch.object(
+            delivery, '_cdek_city_code', return_value=1,
+        ), patch.object(delivery, '_POINT_PAGE_SIZE', page_size), patch.object(
+            delivery, '_CATALOG_MAX_PAGES', limit,
+        ), patch.object(delivery.requests, 'get', side_effect=pages) as get:
+            result = delivery._fetch_cdek('Тула')
+        return result, get.call_args_list
+
+    def test_points_all_pages_and_full_address_coordinates(self):
+        (points, reason), calls = self.fetch_points([
+            self.response([self.point('A')]), self.response([self.point('B')]), self.response([]),
+        ], page_size=1)
+        self.assertIsNone(reason)
+        self.assertEqual([p['id'] for p in points], ['A', 'B'])
+        self.assertEqual(points[0]['address'], 'Тула, Тестовая улица, 1')
+        self.assertEqual((points[0]['lat'], points[0]['lng']), (54.2, 37.6))
+        self.assertEqual([c.kwargs['params']['page'] for c in calls], [0, 1, 2])
+
+    def test_points_reject_invalid_coordinates_addresses_and_wrong_city(self):
+        invalid = []
+        for key, value in [('latitude', 'NaN'), ('latitude', 91), ('longitude', -181),
+                           ('longitude', None), ('city_code', 2), ('country_code', 'BY')]:
+            point = deepcopy(self.point())
+            point['location'][key] = value
+            invalid.append(point)
+        for key, value in [('code', ''), ('is_handout', False), ('type', 'POSTAMAT'),
+                           ('status', 'CLOSED'), ('status', None)]:
+            point = deepcopy(self.point())
+            point[key] = value
+            invalid.append(point)
+        point = deepcopy(self.point())
+        point['location'].update(address='', address_full='')
+        invalid.extend([point, None, {'location': 'invalid'}])
+        (points, reason), _ = self.fetch_points([self.response(invalid + [self.point('GOOD')])])
+        self.assertIsNone(reason)
+        self.assertEqual([p['id'] for p in points], ['GOOD'])
+
+    def test_points_error_or_unknown_format_never_returns_partial_catalog(self):
+        for second in (requests.Timeout(), requests.HTTPError(), self.response({}),
+                       self.response({'errors': []}), self.response(None),
+                       self.response([self.point('A')])):
+            with self.subTest(second=type(second).__name__):
+                (points, reason), _ = self.fetch_points([
+                    self.response([self.point('A')]), second,
+                ], page_size=1)
+                self.assertEqual(points, [])
+                self.assertTrue(reason)
+        (points, reason), _ = self.fetch_points([self.response([self.point()])], page_size=1, limit=1)
+        self.assertEqual(points, [])
+        self.assertTrue(reason)
+
+    def test_token_errors_and_official_authorization_parameters(self):
+        for payload in ({}, [], {'access_token': ''}):
+            with self.subTest(payload=payload), patch.object(
+                delivery.requests, 'post', return_value=self.response(payload),
+            ):
+                self.assertIsNone(delivery._cdek_token(('test-client', 'test-secret')))
+        with patch.object(delivery.requests, 'post', return_value=self.response({
+            'access_token': 'test-token', 'expires_in': 3600,
+        })) as post:
+            self.assertEqual(delivery._cdek_token(('test-client', 'test-secret')), 'test-token')
+            self.assertEqual(delivery._cdek_token(('test-client', 'test-secret')), 'test-token')
+            post.assert_called_once()
+            self.assertEqual(post.call_args.kwargs['params']['grant_type'], 'client_credentials')
+
+    def test_official_point_without_name_uses_code_not_invented_name(self):
+        point = self.point()
+        del point['name']
+        (points, reason), _ = self.fetch_points([self.response([point])])
+        self.assertIsNone(reason)
+        self.assertEqual(points[0]['name'], 'СДЭК TEST1')
+
+    def test_pagination_respects_total_pages_even_if_server_caps_page_size(self):
+        first, second = self.response([self.point('A')]), self.response([self.point('B')])
+        first.headers = second.headers = {'X-Total-Pages': '2'}
+        (points, reason), calls = self.fetch_points([first, second])
+        self.assertIsNone(reason)
+        self.assertEqual([p['id'] for p in points], ['A', 'B'])
+        self.assertEqual(len(calls), 2)
+
+    def test_invalid_pagination_headers_fail_closed(self):
+        for value in ('bad', '-1', '101'):
+            response = self.response([self.point()])
+            response.headers = {'X-Total-Pages': value}
+            (points, reason), _ = self.fetch_points([response])
+            self.assertEqual(points, [])
+            self.assertTrue(reason)
+
+    def test_cache_never_survives_removal_or_rotation_of_credentials(self):
+        with patch.object(delivery, '_fetch_cdek', return_value=([{'id': 'A'}], None)) as fetch:
+            self.assertTrue(delivery._get_cdek_points('Тула')[0])
+            self.assertTrue(delivery._get_cdek_points('ТУЛА')[0])
+            self.assertEqual(fetch.call_count, 1)
+            with patch.dict(os.environ, {'CDEK_CLIENT_SECRET': ''}):
+                self.assertEqual(delivery._get_cdek_points('Тула')[0], [])
+            with patch.dict(os.environ, {'CDEK_CLIENT_SECRET': 'rotated-test-secret'}):
+                delivery._get_cdek_points('Тула')
+            self.assertEqual(fetch.call_count, 2)
+
+    def test_checkout_verification_bypasses_browsing_cache(self):
+        with patch.object(delivery, '_get_cdek_points', return_value=([{'id': 'A'}], None)) as cached:
+            for points, reason in (([], 'API unavailable'), ([], None)):
+                with patch.object(delivery, '_fetch_cdek', return_value=(points, reason)):
+                    self.assertIsNone(delivery.verify_pickup_point('cdek', 'A', 'Тула'))
+            with patch.object(delivery, '_fetch_cdek', return_value=([{'id': 'A'}], None)):
+                self.assertEqual(delivery.verify_pickup_point('cdek', 'A', 'Тула'), {'id': 'A'})
+            cached.assert_not_called()
+
+    def test_russian_post_never_uses_unconfirmed_catalog(self):
+        with patch.dict(os.environ, {'POCHTA_API_TOKEN': 'test-only'}), patch.object(
+            delivery.requests, 'get',
+        ) as get:
+            points, reason = delivery._fetch_pochta('Тула')
+            self.assertEqual(points, [])
+            self.assertTrue(reason)
+            get.assert_not_called()
 
 
 if __name__ == '__main__':

@@ -13,6 +13,9 @@ delivery_bp = Blueprint('delivery', __name__)
 logger = logging.getLogger(__name__)
 
 _CDEK_URL = 'https://api.cdek.ru/v2'
+_CATALOG_MAX_PAGES = 100
+_CITY_PAGE_SIZE = 100
+_POINT_PAGE_SIZE = 1000
 _token_cache = {'token': None, 'expires_at': 0.0, 'credentials': None, 'lock': threading.Lock()}
 _points_cache = {}
 _points_cache_lock = threading.Lock()
@@ -67,6 +70,8 @@ def _cdek_token(credentials):
             )
             response.raise_for_status()
             payload = response.json()
+            if not isinstance(payload, dict) or not isinstance(payload.get('access_token'), str) or not payload['access_token'].strip():
+                raise ValueError('Missing access token')
             cache['token'] = payload['access_token']
             cache['credentials'] = credentials
             cache['expires_at'] = time.time() + int(payload.get('expires_in', 3600))
@@ -78,22 +83,41 @@ def _cdek_token(credentials):
 
 
 def _cdek_city_code(city, token):
+    """Only accept one exact Russian city; a comma-separated region disambiguates."""
+    city_name, _, region = city.partition(',')
+    def normalize(value):
+        return str(value).strip().casefold().replace('ё', 'е')
+
+    matches = {}
+    seen_pages = set()
     try:
-        response = requests.get(
-            f'{_CDEK_URL}/location/cities',
-            headers={'Authorization': f'Bearer {token}'},
-            params={'city': city, 'size': 100},
-            timeout=(3.05, 10),
-        )
-        response.raise_for_status()
-        cities = response.json()
-        normalized = city.casefold().strip()
-        exact = next(
-            (item for item in cities if str(item.get('city', '')).casefold().strip() == normalized),
-            None,
-        )
-        chosen = exact or (cities[0] if cities else None)
-        return chosen.get('code') if chosen else None
+        for page in range(_CATALOG_MAX_PAGES):
+            response = requests.get(
+                f'{_CDEK_URL}/location/cities',
+                headers={'Authorization': f'Bearer {token}'},
+                params={'city': city_name.strip(), 'country_codes': 'RU',
+                        'size': _CITY_PAGE_SIZE, 'page': page},
+                timeout=(3.05, 10),
+            )
+            response.raise_for_status()
+            cities = response.json()
+            if not isinstance(cities, list) or any(not isinstance(item, dict) for item in cities):
+                return None
+            signature = tuple(str(item.get('code')) for item in cities)
+            if cities and signature in seen_pages:
+                return None
+            seen_pages.add(signature)
+            for item in cities:
+                if (
+                    item.get('code')
+                    and item.get('country_code') == 'RU'
+                    and normalize(item.get('city', '')) == normalize(city_name)
+                    and (not region.strip() or normalize(item.get('region', '')) == normalize(region))
+                ):
+                    matches[str(item['code'])] = item['code']
+            if len(cities) < _CITY_PAGE_SIZE:
+                return next(iter(matches.values())) if len(matches) == 1 else None
+        return None
     except (requests.RequestException, ValueError, TypeError, AttributeError) as error:
         logger.warning('CDEK city lookup failed: %s', type(error).__name__)
         return None
@@ -110,11 +134,13 @@ def _fetch_cdek(city):
         return [], 'Не удалось авторизоваться в API СДЭК.'
     city_code = _cdek_city_code(city, token)
     if not city_code:
-        return [], 'Не удалось определить город в каталоге СДЭК.'
+        return [], 'Не удалось однозначно определить город в каталоге СДЭК. Укажите «Город, регион» точно по каталогу или повторите позже.'
 
     result = []
+    seen_pages = set()
+    seen_codes = set()
     try:
-        for page in range(100):
+        for page in range(_CATALOG_MAX_PAGES):
             response = requests.get(
                 f'{_CDEK_URL}/deliverypoints',
                 headers={'Authorization': f'Bearer {token}'},
@@ -122,21 +148,36 @@ def _fetch_cdek(city):
                     'city_code': city_code,
                     'type': 'PVZ',
                     'is_handout': True,
-                    'size': 1000,
+                    'size': _POINT_PAGE_SIZE,
                     'page': page,
                 },
                 timeout=(3.05, 20),
             )
             response.raise_for_status()
             payload = response.json()
-            raw = payload.get('items', []) if isinstance(payload, dict) else payload
+            raw = payload.get('items') if isinstance(payload, dict) else payload
             if not isinstance(raw, list):
                 return [], 'API СДЭК вернул ответ неизвестного формата.'
+            signature = tuple(str(point.get('code')) for point in raw if isinstance(point, dict))
+            if raw and signature in seen_pages:
+                return [], 'API СДЭК повторил страницу каталога. Попробуйте позже.'
+            seen_pages.add(signature)
             for point in raw:
                 if not isinstance(point, dict):
                     continue
+                if (
+                    point.get('is_handout') is not True
+                    or point.get('type') != 'PVZ'
+                    or point.get('status') != 'ACTIVE'
+                ):
+                    continue
                 location = point.get('location') or {}
                 if not isinstance(location, dict):
+                    continue
+                if (
+                    location.get('country_code', 'RU') != 'RU'
+                    or str(location.get('city_code', city_code)) != str(city_code)
+                ):
                     continue
                 try:
                     lat = float(location.get('latitude'))
@@ -144,8 +185,9 @@ def _fetch_cdek(city):
                 except (TypeError, ValueError):
                     continue
                 point_code = point.get('code')
-                name = point.get('name')
-                address = location.get('address') or location.get('address_full')
+                # The official OfficeDto has no required name; the code labels the point.
+                name = point.get('name') or f'СДЭК {point_code}'
+                address = location.get('address_full') or location.get('address')
                 if (
                     not point_code
                     or not isinstance(name, str) or not name.strip()
@@ -154,6 +196,15 @@ def _fetch_cdek(city):
                     or not -90 <= lat <= 90 or not -180 <= lng <= 180
                 ):
                     continue
+                if str(point_code) in seen_codes:
+                    continue
+                seen_codes.add(str(point_code))
+                if not location.get('address_full'):
+                    address = ', '.join(
+                        value.strip() for value in
+                        (location.get('region'), location.get('city'), address)
+                        if isinstance(value, str) and value.strip()
+                    )
                 phones = point.get('phones') or []
                 first_phone = phones[0] if isinstance(phones, list) and phones else {}
                 if not isinstance(first_phone, dict):
@@ -168,7 +219,16 @@ def _fetch_cdek(city):
                     'phone': str(first_phone.get('number', '') or ''),
                     'provider': 'cdek',
                 })
-            if len(raw) < 1000:
+            total_pages = response.headers.get('X-Total-Pages')
+            if total_pages is not None:
+                total_pages = int(total_pages)
+                if total_pages < 0 or total_pages > _CATALOG_MAX_PAGES:
+                    return [], 'Не удалось полностью загрузить каталог СДЭК.'
+                if not raw and total_pages > page + 1:
+                    return [], 'API СДЭК вернул неполный каталог.'
+                if page + 1 >= total_pages:
+                    break
+            elif len(raw) < _POINT_PAGE_SIZE:
                 break
         else:
             logger.error('CDEK pagination limit reached for city code %s', city_code)
@@ -182,10 +242,13 @@ def _fetch_cdek(city):
 
 def _get_cdek_points(city):
     key = city.casefold().strip()
+    credentials = _cdek_credentials()
+    if not credentials:
+        return [], 'Каталог СДЭК недоступен: подключите production-доступ API.'
     now = time.time()
     with _points_cache_lock:
         cached = _points_cache.get(key)
-        if cached and cached['expires_at'] > now:
+        if cached and cached['expires_at'] > now and cached['credentials'] == credentials:
             return cached['points'], cached['reason']
     points, reason = _fetch_cdek(city)
     with _points_cache_lock:
@@ -195,6 +258,7 @@ def _get_cdek_points(city):
         _points_cache[key] = {
             'points': points,
             'reason': reason,
+            'credentials': credentials,
             'expires_at': now + (600 if not reason else 60),
         }
     return points, reason
@@ -219,14 +283,18 @@ def _request_is_within_limit(client_address):
 
 
 def verify_pickup_point(provider, point_id, city):
-    """Validate submitted pickup details against the server-fetched official catalog."""
+    """Validate demo identities locally; re-fetch official catalogs for real points."""
+    if not point_id or not city or len(city) > 120 or len(point_id) > 255:
+        return None
     if current_app.config.get('DELIVERY_DEMO_MODE'):
-        if provider != 'demo' or not point_id or not city:
+        if provider != 'demo':
             return None
         return next((p for p in demo_points(city) if p['id'] == str(point_id)), None)
-    if provider != 'cdek' or not point_id or not city:
+    if provider != 'cdek':
         return None
-    points, _reason = _get_cdek_points(city)
+    points, reason = _fetch_cdek(city)
+    if reason:
+        return None
     return next((point for point in points if point['id'] == str(point_id)), None)
 
 

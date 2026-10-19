@@ -131,6 +131,12 @@
         </button>
       </div>
 
+      {% if not delivery_demo_mode %}
+      <div class="small text-muted mb-3">
+        Для одноимённых населённых пунктов укажите «Город, регион», например «Мирный, Архангельская область».
+        Адреса доступны только при подключённом официальном каталоге оператора.
+      </div>
+      {% endif %}
       {# Фильтр провайдеров #}
       <div class="d-flex gap-2 mb-3 flex-wrap align-items-center">
         <button type="button" class="btn btn-wb btn-sm active" data-pvz-provider="all">Все</button>
@@ -263,6 +269,10 @@
       <button type="submit" class="btn btn-wb w-100 btn-lg fw-bold">
         <i class="bi bi-bag-check me-2"></i>Подтвердить заказ
       </button>
+      <p class="small text-muted mt-3 mb-0">
+        Подтверждение сохраняет заказ только в WildMarket, но не создаёт отправление у перевозчика.
+        Доставка не включена в сумму товаров: стоимость и условия нужно подтвердить отдельно.
+      </p>
     </div>
   </div>
 
