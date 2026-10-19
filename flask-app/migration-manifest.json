@@ -1,4 +1,23 @@
 {
+  "backup_freshness_monitor": {
+    "schedule": "0 * * * *",
+    "timezone": "UTC",
+    "max_age_hours": 36,
+    "run": "APP_ENV=production bash scripts/monitor-backups.sh",
+    "deployment_type": "separate scheduled job",
+    "notification_channel": "Replit scheduled deployment failure email to owner",
+    "notification_policy": "one_failure_per_continuous_incident",
+    "state": "PostgreSQL backup_monitor_states, scoped by environment/source/schema hash",
+    "inspection": "private object metadata only; restore_verified=true and valid verified_at; snapshot age also checked",
+    "recovery": "fresh verified snapshot resets incident; no recovery email",
+    "activation": "not enabled; requires schema publication, separate hourly job and owner email acceptance check",
+    "limitations": [
+      "At-most-one failure exit attempt per incident; scheduler email delivery cannot be acknowledged by this command.",
+      "Crash after latch commit and before failure exit can lose the notification.",
+      "State/configuration failures log monitor_unavailable with zero exit to avoid repeated emails; require operator investigation.",
+      "A disabled watchdog schedule cannot detect its own absence."
+    ]
+  },
   "regular_postgresql_backups": {
     "schedule": "0 0 * * *",
     "timezone": "UTC",

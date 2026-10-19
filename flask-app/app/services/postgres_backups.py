@@ -169,20 +169,27 @@ def prune_verified(bucket, prefix, now, current_name):
     return deleted
 
 
-def run_backup(source_url, schema='wildmarket', environment='development',
-               maintenance_url=None, now=None):
-    """Upload -> download -> SHA-256 -> restore in separate DB -> retention."""
+def backup_scope(source_url, schema, environment):
+    """Shared namespace for backup writer and independent metadata monitor."""
     identifier(schema)
     if environment not in {'development', 'staging', 'production'}:
         raise BackupError('Explicit backup environment required.')
     pg_environment(source_url)
-    now = now or datetime.now(timezone.utc)
     url = make_url(source_url)
     source_id = hashlib.sha256(
         json.dumps([url.host, url.port, url.database]).encode()
     ).hexdigest()[:20]
+    return f'postgresql-backups/v1/{environment}/{source_id}/{schema}/'
+
+
+def run_backup(source_url, schema='wildmarket', environment='development',
+               maintenance_url=None, now=None):
+    """Upload -> download -> SHA-256 -> restore in separate DB -> retention."""
+    scope = backup_scope(source_url, schema, environment)
+    now = now or datetime.now(timezone.utc)
+    url = make_url(source_url)
     bucket, private_prefix = storage_bucket()
-    prefix = f'{private_prefix}/postgresql-backups/v1/{environment}/{source_id}/{schema}/'
+    prefix = f'{private_prefix}/{scope}'
     stamp = now.strftime('%Y%m%dT%H%M%S%fZ')
     name = f'{prefix}{stamp}-{uuid4().hex}.dump'
     engine = create_engine(url, hide_parameters=True, pool_pre_ping=True)

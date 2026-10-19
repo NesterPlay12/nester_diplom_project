@@ -84,6 +84,9 @@ if __name__ == '__main__':
                 with _database_initialization_lock():
                     db.create_all()
                     _run_migrations()
+                    # Optional watchdog storage is not a website readiness dependency.
+                    from app.services.backup_monitor import state_table
+                    state_table(schema).create(bind=db.engine, checkfirst=True)
                 print('Development schema initialized.')
             elif args.command == 'restore-development':
                 from pathlib import Path
