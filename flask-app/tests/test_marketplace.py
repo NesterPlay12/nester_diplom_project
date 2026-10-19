@@ -12,7 +12,7 @@ from sqlalchemy import create_engine, inspect
 from app import create_app
 from app import _migrate_cart_variant_constraint
 from app.config import _get_db_url
-from app.models import CartItem, Category, Order, OrderItem, Product, User, db
+from app.models import CartItem, Category, Order, OrderItem, Product, Review, User, db
 from app.services.product_input import parse_product_form
 from app.routes import delivery
 
@@ -500,6 +500,74 @@ class MarketplaceTestCase(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         with self.app.app_context():
             self.assertIsNotNone(db.session.get(Order, order_id))
+
+    def test_demo_reviews_fill_exact_counter_without_changing_rating_or_database(self):
+        from app.services.demo_reviews import review_page
+        with self.app.app_context():
+            product = db.session.get(Product, self.product_id)
+            product.review_count = 342
+            product.rating = 4.8
+            db.session.commit()
+            query = Review.query.filter_by(product_id=product.id).order_by(Review.id.desc())
+            first = review_page(product, query)
+            last = review_page(product, query, page=18)
+            self.assertEqual(first.total, 342)
+            self.assertEqual(first.demo_count, 342)
+            self.assertEqual(len(first.items), 20)
+            self.assertEqual(last.last, 342)
+            self.assertEqual(len(last.items), 2)
+            self.assertEqual(first.items, review_page(product, query).items)
+            self.assertTrue(all(item.is_demo for item in first.items))
+            self.assertTrue(any(not item.text for item in first.items))
+            self.assertEqual(Review.query.count(), 0)
+            db.session.refresh(product)
+            self.assertEqual(product.rating, 4.8)
+            self.assertEqual(product.review_count, 342)
+            with self.assertRaises(ValueError):
+                review_page(product, query, page=19)
+
+    def test_real_rating_without_comment_is_not_labelled_demo_or_overwritten(self):
+        from app.services.demo_reviews import review_page
+        with self.app.app_context():
+            product = db.session.get(Product, self.product_id)
+            product.review_count = 21
+            product.rating = 4.5
+            db.session.add(Review(
+                product_id=product.id, user_id=self.user_id, rating=3, text='',
+            ))
+            db.session.commit()
+            query = Review.query.filter_by(product_id=product.id).order_by(Review.id.desc())
+            feed = review_page(product, query)
+            self.assertEqual(feed.total, 21)
+            self.assertEqual(feed.real_count, 1)
+            self.assertEqual(feed.demo_count, 20)
+            self.assertFalse(feed.items[0].is_demo)
+            self.assertEqual(feed.items[0].rating, 3)
+            self.assertEqual(feed.items[0].text, '')
+            self.assertEqual(product.rating, 4.5)
+            self.assertEqual(Review.query.count(), 1)
+
+    def test_demo_review_pagination_renders_and_new_zero_counter_products_stay_empty(self):
+        with self.app.app_context():
+            product = db.session.get(Product, self.product_id)
+            self.assertEqual(product.review_count, 0)
+        empty = self.client.get(f'/product/{self.product_id}')
+        self.assertEqual(empty.status_code, 200)
+        self.assertNotIn('Демо-покупатель', empty.get_data(as_text=True))
+        with self.app.app_context():
+            product = db.session.get(Product, self.product_id)
+            product.review_count = 41
+            product.rating = 4.7
+            db.session.commit()
+        last = self.client.get(f'/product/{self.product_id}?reviews_page=3')
+        self.assertEqual(last.status_code, 200)
+        text = last.get_data(as_text=True)
+        self.assertIn('Отзывы и оценки (41)', text)
+        self.assertIn('Показаны 41–41 из 41', text)
+        self.assertIn('Демо-покупатель', text)
+        self.assertEqual(
+            self.client.get(f'/product/{self.product_id}?reviews_page=4').status_code, 404,
+        )
 
     def test_csrf_rejects_post_without_token(self):
         secure_app = create_app({

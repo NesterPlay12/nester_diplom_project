@@ -80,7 +80,13 @@ def product_detail(product_id):
         Product.is_active.is_(True),
         Product.is_approved.is_(True)
     ).order_by(Product.rating.desc(), Product.id.desc()).limit(8).all()
-    reviews = Review.query.filter_by(product_id=product_id).order_by(Review.created_at.desc()).all()
+    from ..services.demo_reviews import review_page
+    query = Review.query.filter_by(product_id=product_id).order_by(Review.created_at.desc(), Review.id.desc())
+    try:
+        review_feed = review_page(product, query, request.args.get('reviews_page', 1, type=int))
+    except ValueError:
+        from flask import abort
+        abort(404)
     can_review = False
     has_review = False
     if current_user.is_authenticated:
@@ -99,7 +105,8 @@ def product_detail(product_id):
         'product.html',
         product=product,
         related=related,
-        reviews=reviews,
+        reviews=review_feed.items,
+        review_feed=review_feed,
         can_review=can_review,
         has_review=has_review,
     )

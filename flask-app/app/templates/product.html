@@ -29,7 +29,10 @@
                     {% if i <= product.rating|int %}★{% else %}☆{% endif %}
                 {% endfor %}
             </div>
-            <span class="text-muted">{{ product.rating|round(1) }} ({{ product.review_count }} отзывов)</span>
+            <span class="text-muted">{{ product.rating|round(1) }} ({{ review_feed.total }} оценок)</span>
+            {% if review_feed.demo_count %}
+            <span class="badge text-bg-light border" title="Оценка каталога сохранена; примеры отзывов демонстрационные">Демо-данные</span>
+            {% endif %}
             <a href="#reviews" class="text-wb text-decoration-none small">Читать отзывы</a>
         </div>
 
@@ -125,7 +128,18 @@
 {% endif %}
 
 <div id="reviews" class="mb-4">
-    <h3 class="h5 fw-bold mb-3">Отзывы ({{ reviews|length }})</h3>
+    <h3 class="h5 fw-bold mb-3">Отзывы и оценки ({{ review_feed.total }})</h3>
+    {% if review_feed.demo_count %}
+    <div class="alert alert-info small">
+        <strong>Демонстрационные отзывы.</strong>
+        {{ review_feed.demo_count }} примеров сгенерировано для показа интерфейса —
+        это не мнения настоящих покупателей и не подтверждение покупок.
+        Оценка товара сохранена без пересчёта.
+        {% if review_feed.real_count %}
+        Настоящих отзывов и оценок: {{ review_feed.real_count }}; они показаны первыми.
+        {% endif %}
+    </div>
+    {% endif %}
 
     {% if can_review %}
     <div class="bg-white rounded-3 p-4 mb-3 shadow-sm">
@@ -144,7 +158,7 @@
                 </div>
             </div>
             <div class="mb-3">
-                <textarea class="form-control" name="text" rows="3" placeholder="Расскажите о товаре..."></textarea>
+                <textarea class="form-control" name="text" rows="3" maxlength="5000" placeholder="Комментарий необязателен — можно оставить только оценку"></textarea>
             </div>
             <button type="submit" class="btn btn-wb">Отправить отзыв</button>
         </form>
@@ -160,16 +174,44 @@
     <div class="review-card">
         <div class="d-flex justify-content-between align-items-start mb-1">
             <div>
-                <span class="fw-semibold">{{ review.user.username }}</span>
+                <span class="fw-semibold">{{ review.author }}</span>
+                {% if review.is_demo %}<span class="badge text-bg-light border ms-1">Демо</span>{% endif %}
                 <span class="rating-stars ms-2">
                     {% for i in range(1,6) %}{% if i<=review.rating %}★{% else %}☆{% endif %}{% endfor %}
                 </span>
             </div>
-            <small class="text-muted">{{ review.created_at.strftime('%d.%m.%Y') }}</small>
+            <small class="text-muted">
+                {% if review.is_demo %}Пример №{{ review.sample_number }}
+                {% else %}{{ review.created_at.strftime('%d.%m.%Y') }}{% endif %}
+            </small>
         </div>
-        {% if review.text %}<p class="mb-0 small">{{ review.text }}</p>{% endif %}
+        {% if review.text %}<p class="mb-0 small">{{ review.text }}</p>
+        {% else %}<p class="mb-0 small text-muted">Оценка без комментария</p>{% endif %}
     </div>
     {% endfor %}
+    <p class="text-muted small mt-3">
+        Показаны {{ review_feed.first }}–{{ review_feed.last }} из {{ review_feed.total }}
+    </p>
+    {% if review_feed.pages > 1 %}
+    <nav aria-label="Страницы отзывов">
+        <ul class="pagination flex-wrap">
+            {% if review_feed.page > 1 %}
+            <li class="page-item"><a class="page-link" href="{{ url_for('main.product_detail', product_id=product.id, reviews_page=review_feed.page-1) }}#reviews">Назад</a></li>
+            {% endif %}
+            {% for number in [1, review_feed.page-1, review_feed.page, review_feed.page+1, review_feed.pages]|unique %}
+            {% if 1 <= number <= review_feed.pages %}
+            <li class="page-item {% if number == review_feed.page %}active{% endif %}">
+                <a class="page-link" {% if number == review_feed.page %}aria-current="page"{% endif %}
+                   href="{{ url_for('main.product_detail', product_id=product.id, reviews_page=number) }}#reviews">{{ number }}</a>
+            </li>
+            {% endif %}
+            {% endfor %}
+            {% if review_feed.page < review_feed.pages %}
+            <li class="page-item"><a class="page-link" href="{{ url_for('main.product_detail', product_id=product.id, reviews_page=review_feed.page+1) }}#reviews">Вперёд</a></li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% endif %}
     {% else %}
     <p class="text-muted">Отзывов пока нет. Будьте первым!</p>
     {% endif %}
