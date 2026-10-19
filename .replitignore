@@ -8,5 +8,7 @@ flask-app/*.schema.lock
 **/__pycache__
 **/*.py[cod]
 /generated-artifacts/
+**/*.dump
+**/*.pgdump
 flask-app/*.db
 flask-app/*.db-*

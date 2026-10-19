@@ -1,6 +1,8 @@
 """Explicit development-only, lossless SQLite -> PostgreSQL transfer.
 
 Never called by web startup or deployment. Backup objects have no public ACL.
+Current PostgreSQL backups live in postgres_backups.py, not this legacy snapshot:
+they reflect the live schema and never use migration-manifest's old table list.
 """
 import hashlib
 import json

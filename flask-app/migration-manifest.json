@@ -1,4 +1,18 @@
 {
+  "regular_postgresql_backups": {
+    "schedule": "0 0 * * *",
+    "timezone": "UTC",
+    "local_schedule": "03:00 Europe/Moscow daily",
+    "retention_days": 30,
+    "run": "APP_ENV=production bash scripts/backup-postgres.sh",
+    "deployment_type": "scheduled",
+    "activation": "requires separate scheduled job after merge; not enabled by web startup",
+    "failure_notifications": "Replit scheduled deployment failure email",
+    "storage": "PRIVATE_OBJECT_DIR/postgresql-backups/v1/<environment>/<source-id>/<schema>/",
+    "encryption": "App Storage server-side encryption at rest and HTTPS transport",
+    "restore_check": "download, SHA-256, pg_restore into new disposable database, all live table fingerprints",
+    "original_migration_backup_exempt_from_retention": true
+  },
   "backup_object": ".private/database-backups/wildmarket-20261015T202309835769Z.sqlite",
   "backup_sha256": "ba534656997036a11909fe8f2f4861abe8e43c4fb753b31220bacc87505d63b3",
   "tables": {
