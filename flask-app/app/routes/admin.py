@@ -3,7 +3,7 @@ from flask_login import login_required, current_user
 from functools import wraps
 from sqlalchemy.exc import IntegrityError
 from ..models import db, User, Product, Category, Order, Review
-from ..services.orders import ORDER_TRANSITIONS, transition_order
+from ..services.orders import ORDER_TRANSITIONS, transition_order, is_legacy_test_order
 from ..services.product_input import apply_product_form, parse_product_form
 
 admin_bp = Blueprint('admin', __name__)
@@ -183,7 +183,29 @@ def orders():
         status_filter=status_filter,
         status_labels=Order.STATUS_LABELS,
         order_transitions=ORDER_TRANSITIONS,
+        is_legacy_test_order=is_legacy_test_order,
     )
+
+
+@admin_bp.route('/orders/<int:order_id>/delete-test', methods=['POST'])
+@login_required
+@admin_required
+def delete_test_order(order_id):
+    # No general order deletion: this removes only the known imported fixture.
+    if current_user.role != 'admin':
+        return 'Доступ запрещён', 403
+    order = Order.query.filter_by(id=order_id).with_for_update().first_or_404()
+    if (
+        request.form.get('confirm_order_id') != str(order.id)
+        or order.status != 'cancelled'
+        or not is_legacy_test_order(order)
+    ):
+        db.session.rollback()
+        return 'Удаление разрешено только для отменённого тестового заказа.', 400
+    db.session.delete(order)
+    db.session.commit()
+    flash('Тестовый заказ удалён. Остатки товаров повторно не изменялись.', 'success')
+    return redirect(url_for('admin.orders'))
 
 
 @admin_bp.route('/orders/<int:order_id>/status', methods=['POST'])

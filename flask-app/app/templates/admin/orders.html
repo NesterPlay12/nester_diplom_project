@@ -57,6 +57,14 @@
                             </select>
                             <button type="submit" class="btn btn-sm btn-wb">✓</button>
                         </form>
+                        {% if current_user.role == 'admin' and order.status == 'cancelled' and is_legacy_test_order(order) %}
+                        <form action="{{ url_for('admin.delete_test_order', order_id=order.id) }}" method="post"
+                              class="mt-2" onsubmit="return confirm('Удалить тестовый заказ #{{ order.id }} безвозвратно?')">
+                            {% include '_csrf_field.html' %}
+                            <input type="hidden" name="confirm_order_id" value="{{ order.id }}">
+                            <button type="submit" class="btn btn-sm btn-outline-danger">Удалить тестовый заказ</button>
+                        </form>
+                        {% endif %}
                     </td>
                 </tr>
                 {% endfor %}

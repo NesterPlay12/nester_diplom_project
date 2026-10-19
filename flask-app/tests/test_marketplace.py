@@ -405,6 +405,51 @@ class MarketplaceTestCase(unittest.TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertTrue(response.location.endswith('/auth/login'))
 
+    def test_admin_cleanup_deletes_only_cancelled_legacy_test_order(self):
+        with self.app.app_context():
+            db.session.get(User, self.user_id).role = 'admin'
+            order = Order(
+                user_id=self.user_id, total=2468, status='cancelled',
+                address='Казань, Тестовая улица, 1',
+            )
+            db.session.add(order)
+            db.session.flush()
+            order.items.append(OrderItem(
+                product_id=self.product_id,
+                product_name='WildMarket Test Product bda3c2452be62a',
+                quantity=2, price=1234,
+            ))
+            db.session.commit()
+            order_id = order.id
+            stock = db.session.get(Product, self.product_id).stock
+        self.login()
+        response = self.client.post(f'/admin/orders/{order_id}/delete-test', data={
+            'confirm_order_id': str(order_id),
+        })
+        self.assertEqual(response.status_code, 302)
+        with self.app.app_context():
+            self.assertIsNone(db.session.get(Order, order_id))
+            self.assertEqual(OrderItem.query.filter_by(order_id=order_id).count(), 0)
+            self.assertEqual(db.session.get(Product, self.product_id).stock, stock)
+
+    def test_admin_cleanup_cannot_delete_real_order(self):
+        with self.app.app_context():
+            db.session.get(User, self.user_id).role = 'admin'
+            order = Order(
+                user_id=self.user_id, total=2468, status='cancelled',
+                address='Настоящий заказ покупателя',
+            )
+            db.session.add(order)
+            db.session.commit()
+            order_id = order.id
+        self.login()
+        response = self.client.post(f'/admin/orders/{order_id}/delete-test', data={
+            'confirm_order_id': str(order_id),
+        })
+        self.assertEqual(response.status_code, 400)
+        with self.app.app_context():
+            self.assertIsNotNone(db.session.get(Order, order_id))
+
     def test_csrf_rejects_post_without_token(self):
         secure_app = create_app({
             'TESTING': True,

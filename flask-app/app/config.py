@@ -55,8 +55,8 @@ class Config:
     WTF_CSRF_TIME_LIMIT = 60 * 60 * 8
 
     # Google OAuth
-    # Enable only after the published callback is authorized in Google Console.
-    GOOGLE_OAUTH_ENABLED = os.environ.get('GOOGLE_OAUTH_ENABLED', 'false').lower() == 'true'
+    # Google Console must authorize the callback on the published domain.
+    GOOGLE_OAUTH_ENABLED = os.environ.get('GOOGLE_OAUTH_ENABLED', 'true').lower() == 'true'
     DELIVERY_DEMO_MODE = True
     GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID', '')
     GOOGLE_CLIENT_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET', '')
