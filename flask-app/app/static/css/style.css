@@ -256,6 +256,31 @@ body {
 }
 
 @media (max-width: 767.98px) {
+    .product-card .card-img-wrap {
+        height: auto;
+        aspect-ratio: 1 / 1;
+    }
+
+    .product-card .card-img-wrap > a {
+        display: block;
+        width: 100%;
+        height: 100%;
+    }
+
+    .product-card .card-img-wrap img {
+        display: block;
+        object-fit: contain;
+        padding: 8px;
+    }
+
+    .product-card:hover .card-img-wrap img {
+        transform: none;
+    }
+
+    .product-card .card-body > .d-flex {
+        flex-wrap: wrap;
+    }
+
     .hero-banner {
         min-height: 112px;
         gap: 12px;
