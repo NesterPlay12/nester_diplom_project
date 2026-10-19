@@ -50,3 +50,6 @@ packages = ["cargo", "libiconv", "libxcrypt", "openssl", "pkg-config", "rustc"]
 [userenv.shared]
 FLASK_DATABASE_SCHEMA = "wildmarket"
 FLASK_DATABASE_SOURCE = "replit"
+
+[userenv.production]
+GOOGLE_OAUTH_ENABLED = "true"
