@@ -2,20 +2,17 @@
 {% block title %}Главная{% endblock %}
 {% block content %}
 
-<div class="hero-banner mb-4">
-    <div class="row align-items-center">
-        <div class="col-md-7">
-            <p class="text-white-50 mb-1 fw-semibold">Каталог товаров · Заказ онлайн</p>
-            <h1>Всё что нужно — <br>здесь и сейчас</h1>
-            <p class="mt-2 text-white-75">Выбирайте товары и следите за статусом заказа в личном кабинете</p>
-            <a href="{{ url_for('main.search') }}" class="btn btn-warning btn-lg mt-3 fw-bold px-4">
-                Смотреть все товары <i class="bi bi-arrow-right ms-2"></i>
-            </a>
-        </div>
-        <div class="col-md-5 text-center d-none d-md-block">
-            <div style="font-size:8rem;opacity:0.2;">🛍</div>
-        </div>
+<div class="hero-banner">
+    <div class="hero-copy">
+        <p class="hero-eyebrow">Каталог товаров · Заказ онлайн</p>
+        <h1>Всё что нужно — <br class="d-none d-md-inline">здесь и сейчас</h1>
+        <p class="hero-description">Выбирайте товары и следите за статусом заказа в личном кабинете</p>
     </div>
+    <a href="{{ url_for('main.search') }}" class="hero-action btn btn-warning fw-bold">
+        <span class="d-none d-md-inline">Смотреть все товары</span>
+        <span class="d-md-none">В каталог</span>
+        <i class="bi bi-arrow-right ms-2" aria-hidden="true"></i>
+    </a>
 </div>
 
 {% if featured %}
