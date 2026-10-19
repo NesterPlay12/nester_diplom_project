@@ -14,6 +14,34 @@ from app.services import postgres_backups as backups
 
 
 class BackupTests(unittest.TestCase):
+    def test_production_requires_dedicated_restore_access_before_upload(self):
+        source = 'postgresql://web:fake@db/source'
+        for maintenance in [None, 'postgresql://web:other@db:5432/maintenance']:
+            with self.subTest(maintenance=bool(maintenance)):
+                with patch.object(backups, 'storage_bucket') as storage:
+                    with self.assertRaises(backups.BackupError):
+                        backups.run_backup(source, environment='production',
+                                           maintenance_url=maintenance)
+                    storage.assert_not_called()
+
+    def test_dedicated_restore_role_or_server_passes_access_gate(self):
+        for maintenance in ['postgresql://restore:fake@db/postgres',
+                            'postgresql://web:fake@verification-server/postgres']:
+            with self.subTest(target='separate'):
+                # Stop at storage: this check must not create a real database.
+                with patch.object(backups, 'storage_bucket', side_effect=RuntimeError('stop')) as storage:
+                    with self.assertRaisesRegex(RuntimeError, '^stop$'):
+                        backups.run_backup('postgresql://web:fake@db/source',
+                                           environment='production', maintenance_url=maintenance)
+                    storage.assert_called_once()
+
+    def test_invalid_restore_connection_fails_before_upload(self):
+        with patch.object(backups, 'storage_bucket') as storage:
+            with self.assertRaises(backups.BackupError):
+                backups.run_backup('postgresql://web:fake@db/source',
+                                   environment='production', maintenance_url='sqlite:///unused')
+            storage.assert_not_called()
+
     def test_manifest_matches_approved_policy(self):
         policy = json.loads(
             (Path(__file__).resolve().parents[1] / 'migration-manifest.json').read_text()

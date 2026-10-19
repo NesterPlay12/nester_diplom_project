@@ -188,6 +188,17 @@ def run_backup(source_url, schema='wildmarket', environment='development',
     scope = backup_scope(source_url, schema, environment)
     now = now or datetime.now(timezone.utc)
     url = make_url(source_url)
+    if environment == 'production':
+        if not maintenance_url:
+            raise BackupError('Production requires a dedicated restore connection.')
+        restore_url = make_url(maintenance_url)
+        # A different database name alone does not isolate the server role.
+        if (url.host, url.port or 5432, url.username) == (
+            restore_url.host, restore_url.port or 5432, restore_url.username,
+        ):
+            raise BackupError('Production restore must use a separate server role or server.')
+    if maintenance_url:
+        pg_environment(maintenance_url)
     bucket, private_prefix = storage_bucket()
     prefix = f'{private_prefix}/{scope}'
     stamp = now.strftime('%Y%m%dT%H%M%S%fZ')
