@@ -8,6 +8,7 @@ from ..services.orders import transition_order
 account_bp = Blueprint('account', __name__)
 
 
+@account_bp.route('/profile')
 @account_bp.route('/')
 @login_required
 def profile():

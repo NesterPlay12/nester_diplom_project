@@ -82,7 +82,7 @@
                  name="delivery_type" value="pickup">
           <div>
             <div class="fw-semibold"><span class="me-1">📦</span>Самовывоз из ПВЗ</div>
-            <div class="small text-muted">СДЭК или Почта России</div>
+            <div class="small text-muted">{{ 'Демонстрация выбора адреса' if delivery_demo_mode else 'СДЭК или Почта России' }}</div>
           </div>
         </label>
       </div>
@@ -101,11 +101,19 @@
     {# ── Самовывоз из ПВЗ ── #}
     <div id="section-pickup" class="bg-white rounded-3 p-4 shadow-sm mb-4" style="display:none">
       <h5 class="fw-bold mb-3"><i class="bi bi-shop me-2 text-wb"></i>Выберите пункт выдачи</h5>
+      {% if delivery_demo_mode %}
+      <div class="alert alert-warning small" role="note">
+        <strong>Демонстрационный режим.</strong> Маркеры привязаны к настоящим адресам зданий,
+        но не обозначают действующие ПВЗ. Посылки по этим адресам не доставляются.
+        Выбор покажет, как работает оформление самовывоза.
+      </div>
+      {% endif %}
 
       {# Поиск города #}
       <div class="d-flex gap-2 mb-3">
         <div class="flex-grow-1">
           <input type="text" class="form-control" id="pvz-city"
+                 value="Москва" aria-label="Город пункта выдачи"
                  placeholder="Введите город, например: Москва"
                  list="city-suggestions">
           <datalist id="city-suggestions">
@@ -126,12 +134,16 @@
       {# Фильтр провайдеров #}
       <div class="d-flex gap-2 mb-3 flex-wrap align-items-center">
         <button type="button" class="btn btn-wb btn-sm active" data-pvz-provider="all">Все</button>
+        {% if delivery_demo_mode %}
+        <span class="badge text-bg-light border">Демо-пункты WildMarket</span>
+        {% else %}
         <button type="button" class="btn btn-outline-secondary btn-sm" data-pvz-provider="cdek">
           <span style="color:#f97316;font-weight:700">●</span> СДЭК
         </button>
         <button type="button" class="btn btn-outline-secondary btn-sm" data-pvz-provider="pochta">
           <span style="color:#3b82f6;font-weight:700">●</span> Почта России
         </button>
+        {% endif %}
         <span class="ms-auto small text-muted" id="pvz-count"></span>
       </div>
 
@@ -151,12 +163,23 @@
           </div>
           <div id="pvz-map"></div>
           <div class="pvz-map-legend">
+            {% if delivery_demo_mode %}
+            <b style="color:#cb11ab">●</b> Демо-пункты · не для реальной доставки
+            {% else %}
             <span class="me-2"><b style="color:#ff7a00">●</b> СДЭК</span>
             <span><b style="color:#a700ff">●</b> Почта России</span>
+            {% endif %}
           </div>
         </div>
       </div>
       <div id="pvz-status" class="alert alert-info mt-3 mb-0" role="status" hidden></div>
+      {% if delivery_demo_mode %}
+      <div class="small text-muted mt-2">
+        Адреса и координаты: <a href="https://www.openstreetmap.org/copyright"
+        target="_blank" rel="noopener noreferrer">© OpenStreetMap contributors, ODbL</a>.
+        Доступны 15 городов из подсказок.
+      </div>
+      {% endif %}
 
       {# Карточка выбранного ПВЗ #}
       <div id="selected-pvz-card" class="mt-3 p-3 rounded-3 border border-2"

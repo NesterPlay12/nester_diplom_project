@@ -335,6 +335,7 @@ class MarketplaceTestCase(unittest.TestCase):
             self.assertTrue(user.check_password('a-long-test-password'))
 
     def test_delivery_endpoint_never_fabricates_points(self):
+        self.app.config['DELIVERY_DEMO_MODE'] = False
         with patch.dict(os.environ, {
             'CDEK_CLIENT_ID': '',
             'CDEK_CLIENT_SECRET': '',
@@ -346,6 +347,63 @@ class MarketplaceTestCase(unittest.TestCase):
         self.assertEqual(data['pvz'], [])
         self.assertIn('cdek', data['unavailable'])
         self.assertIn('pochta', data['unavailable'])
+
+    def test_demo_points_have_stable_address_coordinates_in_all_supported_cities(self):
+        from app.services.demo_pickup import demo_points, supported_cities
+        self.assertEqual(len(supported_cities()), 15)
+        for city in supported_cities():
+            first = {p['id']: p for p in demo_points(city)}
+            second = {p['id']: p for p in demo_points(city)}
+            self.assertEqual(first, second)
+            self.assertGreaterEqual(len(first), 2)
+            for point in first.values():
+                self.assertTrue(point['address'].startswith(city + ', '))
+                self.assertTrue(point['is_demo'])
+                self.assertEqual(point['provider'], 'demo')
+                self.assertTrue(-90 <= point['lat'] <= 90)
+                self.assertTrue(-180 <= point['lng'] <= 180)
+        self.assertEqual(demo_points('Несуществующий город'), [])
+
+    def test_demo_catalog_does_not_call_carrier_apis(self):
+        with patch('app.routes.delivery._get_cdek_points', side_effect=AssertionError):
+            response = self.client.get('/delivery/pvz?city=Казань')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json['mode'], 'demo')
+        self.assertGreater(len(response.json['pvz']), 0)
+        self.assertTrue(all(p['is_demo'] for p in response.json['pvz']))
+
+    def test_demo_selection_is_verified_and_saved_as_demo_order(self):
+        self.login()
+        self.client.post(f'/cart/add/{self.product_id}', data={
+            'quantity': '1', 'color': 'Чёрный', 'size': 'S',
+        })
+        point = self.client.get('/delivery/pvz?city=Казань').json['pvz'][0]
+        form = {
+            'delivery_type': 'pickup', 'pvz_provider': 'demo',
+            'pvz_id': point['id'], 'pvz_city': 'Москва',
+            'address': 'forged address', 'phone': '+70000000000',
+            'payment_method': 'cash_on_delivery',
+        }
+        self.assertEqual(self.client.post('/cart/checkout', data=form).status_code, 400)
+        form['pvz_city'] = 'Казань'
+        self.assertEqual(self.client.post('/cart/checkout', data=form).status_code, 302)
+        with self.app.app_context():
+            order = Order.query.one()
+            self.assertIn('ДЕМО — не для реальной доставки', order.address)
+            self.assertIn(point['address'], order.address)
+            self.assertNotIn('forged address', order.address)
+
+    def test_google_oauth_is_not_advertised_until_explicitly_enabled(self):
+        self.app.config.update(
+            GOOGLE_OAUTH_ENABLED=False,
+            GOOGLE_CLIENT_ID='configured-test-client',
+            GOOGLE_CLIENT_SECRET='configured-test-secret',
+        )
+        page = self.client.get('/auth/register')
+        self.assertNotIn('Зарегистрироваться через Google', page.get_data(as_text=True))
+        response = self.client.get('/auth/google')
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(response.location.endswith('/auth/login'))
 
     def test_csrf_rejects_post_without_token(self):
         secure_app = create_app({

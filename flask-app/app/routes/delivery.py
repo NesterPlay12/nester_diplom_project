@@ -6,7 +6,8 @@ import threading
 import time
 
 import requests
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, current_app
+from ..services.demo_pickup import demo_points, supported_cities
 
 delivery_bp = Blueprint('delivery', __name__)
 logger = logging.getLogger(__name__)
@@ -219,6 +220,10 @@ def _request_is_within_limit(client_address):
 
 def verify_pickup_point(provider, point_id, city):
     """Validate submitted pickup details against the server-fetched official catalog."""
+    if current_app.config.get('DELIVERY_DEMO_MODE'):
+        if provider != 'demo' or not point_id or not city:
+            return None
+        return next((p for p in demo_points(city) if p['id'] == str(point_id)), None)
     if provider != 'cdek' or not point_id or not city:
         return None
     points, _reason = _get_cdek_points(city)
@@ -247,8 +252,23 @@ def get_pvz():
         return jsonify({'error': 'Укажите город'}), 400
     if len(city) > 120:
         return jsonify({'error': 'Название города слишком длинное'}), 400
-    if provider not in ('all', 'cdek', 'pochta'):
+    if provider not in ('all', 'cdek', 'pochta', 'demo'):
         return jsonify({'error': 'Неизвестный оператор доставки'}), 400
+
+    if current_app.config.get('DELIVERY_DEMO_MODE'):
+        points = demo_points(city) if provider in ('all', 'demo') else []
+        center = (
+            [sum(p['lat'] for p in points) / len(points),
+             sum(p['lng'] for p in points) / len(points)] if points else None
+        )
+        return jsonify({
+            'pvz': points, 'center': center, 'city': city, 'mode': 'demo',
+            'supported_cities': supported_cities(),
+            'unavailable': {} if points else {
+                'demo': 'Для этого города демонстрационные адреса пока не добавлены. '
+                        'Выберите город из подсказок.',
+            },
+        })
 
     points = []
     unavailable = {}

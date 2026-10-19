@@ -110,8 +110,10 @@ def create_app(config_overrides=None):
     def inject_google_oauth():
         return {
             'google_oauth_enabled': bool(
-                app.config.get('GOOGLE_CLIENT_ID') and app.config.get('GOOGLE_CLIENT_SECRET')
+                app.config.get('GOOGLE_OAUTH_ENABLED')
+                and app.config.get('GOOGLE_CLIENT_ID') and app.config.get('GOOGLE_CLIENT_SECRET')
             ),
+            'delivery_demo_mode': app.config.get('DELIVERY_DEMO_MODE', False),
             'yandex_maps_api_key': app.config.get('YANDEX_MAPS_API_KEY', ''),
             'app_base_path': request.script_root.rstrip('/'),
             'current_year': datetime.now(timezone.utc).year,

@@ -173,9 +173,10 @@ def checkout():
             request.form.get('pvz_city', '').strip(),
         )
         if not point:
-            flash('Выберите пункт из актуального каталога оператора.', 'warning')
+            flash('Выберите доступный пункт на карте для указанного города.', 'warning')
             return render_template('checkout.html', items=items, total=total), 400
-        address = f"ПВЗ {point['provider'].upper()} — {point['name']}, {point['address']}"
+        prefix = 'ДЕМО — не для реальной доставки' if point.get('is_demo') else f"ПВЗ {point['provider'].upper()}"
+        address = f"{prefix} — {point['name']}, {point['address']}"
     elif delivery_type != 'courier':
         flash('Выбран неизвестный способ доставки.', 'danger')
         return render_template('checkout.html', items=items, total=total), 400

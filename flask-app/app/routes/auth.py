@@ -113,7 +113,11 @@ def logout():
 @auth_bp.route('/google')
 def google_login():
     """Перенаправляет пользователя на страницу авторизации Google."""
-    if not current_app.config.get('GOOGLE_CLIENT_ID') or not current_app.config.get('GOOGLE_CLIENT_SECRET'):
+    if (
+        not current_app.config.get('GOOGLE_OAUTH_ENABLED')
+        or not current_app.config.get('GOOGLE_CLIENT_ID')
+        or not current_app.config.get('GOOGLE_CLIENT_SECRET')
+    ):
         flash('Вход через Google временно недоступен. Используйте email и пароль.', 'warning')
         return redirect(url_for('auth.login'))
 

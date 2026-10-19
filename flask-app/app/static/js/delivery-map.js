@@ -13,11 +13,14 @@
   let currentProvider = 'all';
   let mapCityUnresolved = false;
   let mapCenter = [55.7558, 37.6176];
+  let loadedCity = '';
+  let requestVersion = 0;
+  let loading = false;
   const appBasePath = document.querySelector('meta[name="app-base-path"]')?.content || '';
   const appUrl = path => `${appBasePath}${path}`;
 
-  const PROVIDER_COLOR = { cdek: '#ff7a00', pochta: '#a700ff' };
-  const PROVIDER_LABEL = { cdek: 'СДЭК', pochta: 'Почта России' };
+  const PROVIDER_COLOR = { cdek: '#ff7a00', pochta: '#a700ff', demo: '#cb11ab' };
+  const PROVIDER_LABEL = { cdek: 'СДЭК', pochta: 'Почта России', demo: 'Демо WildMarket' };
   const qs = id => document.getElementById(id);
 
   function suffix(n) {
@@ -39,7 +42,7 @@
     return {
       preset: 'islands#circleDotIcon',
       iconColor: color,
-      iconCaption: pvz.provider === 'cdek' ? 'С' : 'П',
+      iconCaption: pvz.provider === 'demo' ? 'Д' : pvz.provider === 'cdek' ? 'С' : 'П',
       iconCaptionMaxWidth: 18,
       hideIconOnBalloonOpen: false,
     };
@@ -73,6 +76,7 @@
         '<b>{{ properties.name }}</b><br><span>{{ properties.address }}</span>'
       )
     });
+    renderMarkers(filtered());
     map.geoObjects.add(clusterer);
     document.addEventListener('click', e => {
       const button = e.target.closest('.btn-select-pvz');
@@ -82,9 +86,16 @@
     });
     qs('pvz-map-search')?.addEventListener('keydown', e => {
       if (e.key === 'Enter' && e.target.value.trim()) {
+        e.preventDefault();
         ymaps.geocode(e.target.value.trim(), { results: 1 }).then(result => {
           const first = result.geoObjects.get(0);
           if (first) map.setCenter(first.geometry.getCoordinates(), 13);
+        }).catch(() => {
+          const status = qs('pvz-status');
+          if (status) {
+            status.textContent = 'Поиск адреса недоступен. Выберите пункт из списка.';
+            status.hidden = false;
+          }
         });
       }
     });
@@ -117,11 +128,11 @@
       return;
     }
     container.innerHTML = list.map(pvz => `
-      <div class="pvz-list-item mb-1" data-pvz-id="${escapeHtml(pvz.id)}">
+      <button type="button" class="pvz-list-item mb-1 text-start w-100" data-pvz-id="${escapeHtml(pvz.id)}">
         <div class="small fw-semibold">${escapeHtml(pvz.address)}</div>
         <div class="pvz-address small mt-1">${escapeHtml(pvz.name)}</div>
         <div class="pvz-meta mt-1">${escapeHtml(PROVIDER_LABEL[pvz.provider] || 'Пункт выдачи')}${pvz.work_time ? ` · ${escapeHtml(pvz.work_time)}` : ''}</div>
-      </div>`).join('');
+      </button>`).join('');
     container.querySelectorAll('.pvz-list-item').forEach(item => item.addEventListener('click', () => {
       const pvz = list.find(point => point.id === item.dataset.pvzId);
       if (!pvz) return;
@@ -138,10 +149,11 @@
   }
 
   function selectPvz(pvz) {
+    if (qs('pvz-city')?.value.trim() !== loadedCity || loading) return;
     selectedPvz = pvz;
     if (qs('pvz-provider')) qs('pvz-provider').value = pvz.provider;
     if (qs('pvz-id')) qs('pvz-id').value = pvz.id;
-    if (qs('pvz-city-selected')) qs('pvz-city-selected').value = qs('pvz-city')?.value.trim() || '';
+    if (qs('pvz-city-selected')) qs('pvz-city-selected').value = loadedCity;
     const display = qs('pvz-address-display');
     if (display) display.value = pvz.address;
     const card = qs('selected-pvz-card');
@@ -201,6 +213,8 @@
   }
 
   async function loadPvz(city) {
+    const version = ++requestVersion;
+    loading = true;
     const spinner = qs('pvz-spinner'), wrap = qs('pvz-map-wrap');
     if (spinner) spinner.style.display = 'flex';
     if (wrap) wrap.style.display = 'none';
@@ -209,6 +223,8 @@
       const response = await fetch(appUrl(`/delivery/pvz?city=${encodeURIComponent(city)}&provider=all`));
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const data = await response.json();
+      if (version !== requestVersion) return;
+      loadedCity = city;
       allPvz = data.pvz || [];
       unavailableProviders = data.unavailable || {};
       mapCityUnresolved = false;
@@ -233,6 +249,8 @@
         }
       }
       mapCityUnresolved = !cityResolved;
+      if (version !== requestVersion) return;
+      loading = false;
       const mapElement = qs('pvz-map');
       if (mapElement) mapElement.style.display = cityResolved ? '' : 'none';
       initMap();
@@ -240,6 +258,7 @@
       applyProvider(currentProvider);
       if (wrap) wrap.style.display = 'flex';
     } catch (error) {
+      if (version !== requestVersion) return;
       console.error('PVZ load error:', error);
       allPvz = [];
       unavailableProviders = {};
@@ -252,7 +271,10 @@
       renderList([]);
       if (qs('pvz-count')) qs('pvz-count').textContent = '';
     } finally {
-      if (spinner) spinner.style.display = 'none';
+      if (version === requestVersion) {
+        loading = false;
+        if (spinner) spinner.style.display = 'none';
+      }
     }
   }
 
@@ -261,6 +283,9 @@
     if (qs('section-courier')) qs('section-courier').style.display = pickup ? 'none' : 'block';
     if (qs('section-pickup')) qs('section-pickup').style.display = pickup ? 'block' : 'none';
     if (pickup && !map && window.ymaps) ymaps.ready(initMap);
+    if (pickup && !loadedCity && !loading && qs('pvz-city')?.value.trim()) {
+      loadPvz(qs('pvz-city').value.trim());
+    }
     if (!pickup) clearPvz();
     setTimeout(() => map?.container.fitToViewport(), 200);
   }
@@ -276,18 +301,28 @@
     qs('pvz-city')?.addEventListener('keydown', e => {
       if (e.key === 'Enter') { e.preventDefault(); qs('btn-search-pvz')?.click(); }
     });
+    qs('pvz-city')?.addEventListener('input', () => {
+      ++requestVersion;
+      loading = false;
+      clearPvz();
+      allPvz = [];
+      renderMarkers([]);
+      renderList([]);
+      if (qs('pvz-count')) qs('pvz-count').textContent = '';
+      if (qs('pvz-spinner')) qs('pvz-spinner').style.display = 'none';
+    });
     document.querySelectorAll('[data-pvz-provider]').forEach(button =>
       button.addEventListener('click', () => applyProvider(button.dataset.pvzProvider)));
     qs('checkout-form')?.addEventListener('submit', e => {
       const pickup = document.querySelector('input[name="delivery_type"]:checked')?.value === 'pickup';
       if (pickup) {
-        if (!selectedPvz) {
+        if (!selectedPvz || loading || loadedCity !== qs('pvz-city')?.value.trim()) {
           e.preventDefault();
           alert('Введите город и выберите пункт выдачи на карте');
           return;
         }
        qs('final-address').value = `ПВЗ ${PROVIDER_LABEL[selectedPvz.provider]}: ${selectedPvz.address}`;
-       qs('pvz-city-selected').value = qs('pvz-city')?.value.trim() || '';
+       qs('pvz-city-selected').value = loadedCity;
       } else {
         const address = qs('courier-address')?.value.trim();
         if (!address) {
