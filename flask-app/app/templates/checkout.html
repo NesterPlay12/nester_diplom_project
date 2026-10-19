@@ -82,7 +82,7 @@
                  name="delivery_type" value="pickup">
           <div>
             <div class="fw-semibold"><span class="me-1">📦</span>Самовывоз из ПВЗ</div>
-            <div class="small text-muted">{{ 'Демонстрация выбора адреса' if delivery_demo_mode else 'СДЭК или Почта России' }}</div>
+            <div class="small text-muted">{{ 'Просмотр адресов на карте' if delivery_demo_mode else 'СДЭК или Почта России' }}</div>
           </div>
         </label>
       </div>
@@ -103,24 +103,20 @@
       <h5 class="fw-bold mb-3"><i class="bi bi-shop me-2 text-wb"></i>Выберите пункт выдачи</h5>
       {% if delivery_demo_mode %}
       <div class="alert alert-warning small" role="note">
-        <strong>Демонстрационный режим.</strong> Маркеры привязаны к настоящим адресам зданий,
-        но не обозначают действующие ПВЗ. Посылки по этим адресам не доставляются.
-        Выбор покажет, как работает оформление самовывоза.
+        На карте — адреса для ознакомления, не действующие пункты выдачи.
+        Получение посылок по этим адресам пока недоступно.
       </div>
       {% endif %}
 
-      {# Поиск города #}
+      {% if not delivery_demo_mode %}
+      {# Официальный каталог оператора по-прежнему требует город. #}
       <div class="d-flex gap-2 mb-3">
         <div class="flex-grow-1">
-          {% set demo_cities = demo_pickup_cities() if delivery_demo_mode else [] %}
           <input type="text" class="form-control" id="pvz-city"
-                 value="{{ ('Москва' if 'Москва' in demo_cities else demo_cities|first|default('')) if delivery_demo_mode else 'Москва' }}" aria-label="Город пункта выдачи"
+                 value="Москва" aria-label="Город пункта выдачи"
                  placeholder="Введите город, например: Москва"
                  list="city-suggestions">
           <datalist id="city-suggestions">
-            {% if delivery_demo_mode %}
-            {% for city in demo_cities %}<option value="{{ city }}">{% endfor %}
-            {% else %}
             <option value="Москва"><option value="Санкт-Петербург">
             <option value="Новосибирск"><option value="Екатеринбург">
             <option value="Казань"><option value="Нижний Новгород">
@@ -128,7 +124,6 @@
             <option value="Омск"><option value="Самара">
             <option value="Ростов-на-Дону"><option value="Уфа">
             <option value="Волгоград"><option value="Пермь"><option value="Воронеж">
-            {% endif %}
           </datalist>
         </div>
         <button class="btn btn-wb px-4 fw-semibold" type="button" id="btn-search-pvz">
@@ -136,7 +131,6 @@
         </button>
       </div>
 
-      {% if not delivery_demo_mode %}
       <div class="small text-muted mb-3">
         Для одноимённых населённых пунктов укажите «Город, регион», например «Мирный, Архангельская область».
         Адреса доступны только при подключённом официальном каталоге оператора.
@@ -146,7 +140,10 @@
       <div class="d-flex gap-2 mb-3 flex-wrap align-items-center">
         <button type="button" class="btn btn-wb btn-sm active" data-pvz-provider="all">Все</button>
         {% if delivery_demo_mode %}
-        <span class="badge text-bg-light border">Демо-пункты WildMarket</span>
+        <span class="small text-muted">Все добавленные адреса</span>
+        <button type="button" class="btn btn-outline-secondary btn-sm" id="btn-reload-pvz" aria-label="Обновить адреса на карте">
+          <i class="bi bi-arrow-clockwise" aria-hidden="true"></i> Обновить
+        </button>
         {% else %}
         <button type="button" class="btn btn-outline-secondary btn-sm" data-pvz-provider="cdek">
           <span style="color:#f97316;font-weight:700">●</span> СДЭК
@@ -172,10 +169,10 @@
             <input class="form-control" id="pvz-map-search" type="search"
                    placeholder="Поиск мест и адресов">
           </div>
-          <div id="pvz-map"></div>
+           <div id="pvz-map" data-catalog-scope="{{ 'all' if delivery_demo_mode else 'city' }}"></div>
           <div class="pvz-map-legend">
             {% if delivery_demo_mode %}
-            <b style="color:#cb11ab">●</b> Демо-пункты · не для реальной доставки
+             <b style="color:#cb11ab">●</b> Адреса WildMarket
             {% else %}
             <span class="me-2"><b style="color:#ff7a00">●</b> СДЭК</span>
             <span><b style="color:#a700ff">●</b> Почта России</span>
@@ -188,7 +185,7 @@
       <div class="small text-muted mt-2">
         Адреса и координаты: <a href="https://www.openstreetmap.org/copyright"
         target="_blank" rel="noopener noreferrer">© OpenStreetMap contributors, ODbL</a>.
-        Доступны 15 городов из подсказок.
+         Перемещайте карту или ищите город и адрес. Точки видны везде, где они добавлены.
       </div>
       {% endif %}
 

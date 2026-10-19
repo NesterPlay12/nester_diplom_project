@@ -91,7 +91,7 @@ def managed_catalog():
             point_id = f'demo-{identifier}'
             points[point_id] = {
                 'id': point_id, 'provider': 'demo', 'city': city,
-                'name': 'Демонстрационный пункт WildMarket',
+                'name': 'Точка WildMarket',
                 'address': full_address, 'lat': lat, 'lng': lng,
                 'work_time': 'Демо: реальная выдача посылок не производится',
                 'is_demo': True, 'is_active': True,
@@ -106,11 +106,13 @@ def managed_catalog():
     return points
 
 
-def demo_points(city):
-    normalized = normalize_city(city)
+def demo_points(city=None):
+    """Active catalogue across all cities unless an explicit city is requested."""
+    normalized = normalize_city(city) if city else None
     points = [
         point for point in managed_catalog().values()
-        if point['is_active'] and normalize_city(point['city']) == normalized
+        if point['is_active']
+        and (normalized is None or normalize_city(point['city']) == normalized)
     ]
     random.SystemRandom().shuffle(points)
     return points

@@ -316,8 +316,6 @@ def get_pvz():
         return response
     city = request.args.get('city', '').strip()
     provider = request.args.get('provider', 'all')
-    if not city:
-        return jsonify({'error': 'Укажите город'}), 400
     if len(city) > 120:
         return jsonify({'error': 'Название города слишком длинное'}), 400
     if provider not in ('all', 'cdek', 'pochta', 'demo'):
@@ -333,11 +331,13 @@ def get_pvz():
             'pvz': points, 'center': center, 'city': city, 'mode': 'demo',
             'supported_cities': supported_cities(),
             'unavailable': {} if points else {
-                'demo': 'Для этого города демонстрационные адреса пока не добавлены. '
-                        'Выберите город из подсказок.',
+                'demo': ('В этом городе адреса пока не добавлены.'
+                         if city else 'На карте пока нет добавленных адресов.'),
             },
         })
 
+    if not city:
+        return jsonify({'error': 'Укажите город'}), 400
     points = []
     unavailable = {}
     if provider in ('all', 'cdek'):

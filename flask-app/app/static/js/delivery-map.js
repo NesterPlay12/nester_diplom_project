@@ -17,13 +17,15 @@
   let catalogRequest = 0;
   let catalogController = null;
   let loadedCity = '';
+  let catalogLoaded = false;
   let loading = false;
   const appBasePath = document.querySelector('meta[name="app-base-path"]')?.content || '';
   const appUrl = path => `${appBasePath}${path}`;
 
   const PROVIDER_COLOR = { cdek: '#ff7a00', pochta: '#a700ff', demo: '#cb11ab' };
-  const PROVIDER_LABEL = { cdek: 'СДЭК', pochta: 'Почта России', demo: 'Демо WildMarket' };
+  const PROVIDER_LABEL = { cdek: 'СДЭК', pochta: 'Почта России', demo: 'Адрес WildMarket' };
   const qs = id => document.getElementById(id);
+  const allCities = qs('pvz-map')?.dataset.catalogScope === 'all';
 
   function suffix(n) {
     const m10 = n % 10, m100 = n % 100;
@@ -44,7 +46,7 @@
     return {
       preset: 'islands#circleDotIcon',
       iconColor: color,
-      iconCaption: pvz.provider === 'demo' ? 'Д' : pvz.provider === 'cdek' ? 'С' : 'П',
+      iconCaption: pvz.provider === 'demo' ? 'W' : pvz.provider === 'cdek' ? 'С' : 'П',
       iconCaptionMaxWidth: 18,
       hideIconOnBalloonOpen: false,
     };
@@ -54,12 +56,24 @@
     return `<div style="min-width:220px">
       <b>${escapeHtml(pvz.name)}</b>
       <div style="margin:6px 0;color:#555">${escapeHtml(pvz.address)}</div>
-      <div style="font-size:12px;color:#777">${escapeHtml(pvz.work_time || 'График уточняется')}</div>
+      ${pvz.provider !== 'demo' ? `<div style="font-size:12px;color:#777">${escapeHtml(pvz.work_time || 'График уточняется')}</div>` : ''}
       <button type="button" class="btn-select-pvz" data-pvz-id="${escapeHtml(pvz.id)}"
         style="margin-top:10px;padding:7px 12px;background:#cb11ab;color:#fff;border:0;border-radius:6px;font-weight:600;width:100%">
         Выбрать этот пункт
       </button>
     </div>`;
+  }
+
+  function focusPoints(points) {
+    if (!map || !points.length) return;
+    if (points.length === 1) {
+      map.setCenter([Number(points[0].lat), Number(points[0].lng)], 15);
+      return;
+    }
+    map.setBounds([
+      [Math.min(...points.map(p => Number(p.lat))), Math.min(...points.map(p => Number(p.lng)))],
+      [Math.max(...points.map(p => Number(p.lat))), Math.max(...points.map(p => Number(p.lng)))],
+    ], { checkZoomRange: true, zoomMargin: 40, duration: 250 });
   }
 
   function initMap() {
@@ -89,6 +103,13 @@
     qs('pvz-map-search')?.addEventListener('keydown', e => {
       if (e.key === 'Enter' && e.target.value.trim()) {
         e.preventDefault();
+        const query = e.target.value.trim().toLocaleLowerCase('ru').replace(/ё/g, 'е');
+        const local = allPvz.filter(point =>
+          `${point.city || ''} ${point.address}`.toLocaleLowerCase('ru').replace(/ё/g, 'е').includes(query));
+        if (local.length) {
+          focusPoints(local);
+          return;
+        }
         ymaps.geocode(e.target.value.trim(), { results: 1 }).then(result => {
           const first = result.geoObjects.get(0);
           if (first) map.setCenter(first.geometry.getCoordinates(), 13);
@@ -133,7 +154,7 @@
       <button type="button" class="pvz-list-item mb-1 text-start w-100" data-pvz-id="${escapeHtml(pvz.id)}">
         <div class="small fw-semibold">${escapeHtml(pvz.address)}</div>
         <div class="pvz-address small mt-1">${escapeHtml(pvz.name)}</div>
-        <div class="pvz-meta mt-1">${escapeHtml(PROVIDER_LABEL[pvz.provider] || 'Пункт выдачи')}${pvz.work_time ? ` · ${escapeHtml(pvz.work_time)}` : ''}</div>
+        <div class="pvz-meta mt-1">${escapeHtml(PROVIDER_LABEL[pvz.provider] || 'Пункт выдачи')}${pvz.work_time && pvz.provider !== 'demo' ? ` · ${escapeHtml(pvz.work_time)}` : ''}</div>
       </button>`).join('');
     container.querySelectorAll('.pvz-list-item').forEach(item => item.addEventListener('click', () => {
       const pvz = list.find(point => point.id === item.dataset.pvzId);
@@ -151,11 +172,12 @@
   }
 
   function selectPvz(pvz) {
-    if (loading || !loadedCity || loadedCity !== qs('pvz-city')?.value.trim() || !allPvz.includes(pvz)) return;
+    if (loading || !catalogLoaded || !allPvz.includes(pvz)) return;
+    if (!allCities && loadedCity !== qs('pvz-city')?.value.trim()) return;
     selectedPvz = pvz;
     if (qs('pvz-provider')) qs('pvz-provider').value = pvz.provider;
     if (qs('pvz-id')) qs('pvz-id').value = pvz.id;
-    if (qs('pvz-city-selected')) qs('pvz-city-selected').value = loadedCity;
+    if (qs('pvz-city-selected')) qs('pvz-city-selected').value = pvz.city || loadedCity;
     const display = qs('pvz-address-display');
     if (display) display.value = pvz.address;
     const card = qs('selected-pvz-card');
@@ -165,7 +187,7 @@
         <div><span class="badge text-white mb-2" style="background:${PROVIDER_COLOR[pvz.provider]}">${PROVIDER_LABEL[pvz.provider]}</span>
           <div class="fw-bold">${escapeHtml(pvz.name)}</div>
           <div class="small text-muted mt-1"><i class="bi bi-geo-alt me-1"></i>${escapeHtml(pvz.address)}</div>
-          <div class="small text-muted mt-1"><i class="bi bi-clock me-1"></i>${escapeHtml(pvz.work_time || '')}</div>
+           ${pvz.provider !== 'demo' ? `<div class="small text-muted mt-1"><i class="bi bi-clock me-1"></i>${escapeHtml(pvz.work_time || '')}</div>` : ''}
         </div><button type="button" class="btn btn-sm btn-outline-secondary" id="btn-change-pvz">Изменить</button>
       </div>`;
       qs('btn-change-pvz')?.addEventListener('click', clearPvz);
@@ -209,12 +231,13 @@
     if (mapCityUnresolved) relevantErrors.push('Не удалось определить город на карте. Проверьте его название.');
     const status = qs('pvz-status');
     if (status) {
-      status.textContent = relevantErrors.join(' ') || (!allPvz.length ? 'В выбранном городе каталог не вернул пунктов выдачи.' : '');
+      status.textContent = relevantErrors.join(' ') || (!allPvz.length
+        ? (allCities ? 'Адреса пока не добавлены.' : 'В выбранном городе каталог не вернул пунктов выдачи.') : '');
       status.hidden = !status.textContent;
     }
   }
 
-  async function loadPvz(city) {
+  async function loadPvz(city = '') {
     catalogController?.abort();
     catalogController = new AbortController();
     const requestId = ++catalogRequest;
@@ -223,12 +246,14 @@
     if (spinner) spinner.style.display = 'flex';
     if (wrap) wrap.style.display = 'none';
     clearPvz();
+    catalogLoaded = false;
     loadedCity = '';
     allPvz = [];
     renderMarkers([]);
     renderList([]);
     try {
-      const response = await fetch(appUrl(`/delivery/pvz?city=${encodeURIComponent(city)}&provider=all`),
+      const query = allCities ? 'provider=demo' : `city=${encodeURIComponent(city)}&provider=all`;
+      const response = await fetch(appUrl(`/delivery/pvz?${query}`),
         { signal: catalogController.signal });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const data = await response.json();
@@ -245,6 +270,8 @@
       ) {
         mapCenter = data.center.map(Number);
         cityResolved = true;
+      } else if (allCities) {
+        cityResolved = true;
       } else if (window.ymaps) {
         try {
           const geo = await ymaps.geocode(city, { results: 1 });
@@ -260,13 +287,21 @@
       if (requestId !== catalogRequest) return;
       allPvz = points;
       loadedCity = city;
+      catalogLoaded = true;
       mapCityUnresolved = !cityResolved;
       const mapElement = qs('pvz-map');
       if (mapElement) mapElement.style.display = cityResolved ? '' : 'none';
-      initMap();
-      if (cityResolved) map?.setCenter(mapCenter, 12);
-      applyProvider(currentProvider);
       if (wrap) wrap.style.display = 'flex';
+      applyProvider(currentProvider);
+      if (window.ymaps) {
+        ymaps.ready(() => {
+          if (requestId !== catalogRequest) return;
+          initMap();
+          map?.container.fitToViewport();
+          if (!allCities && cityResolved) map?.setCenter(mapCenter, 12);
+          renderMarkers(filtered());
+        });
+      }
     } catch (error) {
       if (requestId !== catalogRequest || error.name === 'AbortError') return;
       console.error('PVZ load error:', error);
@@ -294,8 +329,8 @@
     if (qs('section-courier')) qs('section-courier').style.display = pickup ? 'none' : 'block';
     if (qs('section-pickup')) qs('section-pickup').style.display = pickup ? 'block' : 'none';
     if (pickup && !map && window.ymaps) ymaps.ready(initMap);
-    if (pickup && !loadedCity && !loading && qs('pvz-city')?.value.trim()) {
-      loadPvz(qs('pvz-city').value.trim());
+    if (pickup && !catalogLoaded && !loading && (allCities || qs('pvz-city')?.value.trim())) {
+      loadPvz(allCities ? '' : qs('pvz-city').value.trim());
     }
     if (!pickup) clearPvz();
     setTimeout(() => map?.container.fitToViewport(), 200);
@@ -304,6 +339,7 @@
   document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('input[name="delivery_type"]').forEach(radio => radio.addEventListener('change', onDeliveryTypeChange));
     onDeliveryTypeChange();
+    qs('btn-reload-pvz')?.addEventListener('click', () => loadPvz());
     qs('btn-search-pvz')?.addEventListener('click', () => {
       const city = qs('pvz-city')?.value.trim();
       if (city) loadPvz(city);
@@ -317,6 +353,7 @@
       catalogController?.abort();
       loading = false;
       loadedCity = '';
+      catalogLoaded = false;
       clearPvz();
       allPvz = [];
       unavailableProviders = {};
@@ -334,13 +371,14 @@
     qs('checkout-form')?.addEventListener('submit', e => {
       const pickup = document.querySelector('input[name="delivery_type"]:checked')?.value === 'pickup';
       if (pickup) {
-        if (!selectedPvz || loading || loadedCity !== qs('pvz-city')?.value.trim()) {
+        if (!selectedPvz || loading || !catalogLoaded
+            || (!allCities && loadedCity !== qs('pvz-city')?.value.trim())) {
           e.preventDefault();
-          alert('Введите город и выберите пункт выдачи на карте');
+          alert(allCities ? 'Выберите адрес на карте или в списке' : 'Введите город и выберите пункт выдачи на карте');
           return;
         }
        qs('final-address').value = `ПВЗ ${PROVIDER_LABEL[selectedPvz.provider]}: ${selectedPvz.address}`;
-       qs('pvz-city-selected').value = loadedCity;
+        qs('pvz-city-selected').value = selectedPvz.city || loadedCity;
       } else {
         const address = qs('courier-address')?.value.trim();
         if (!address) {
