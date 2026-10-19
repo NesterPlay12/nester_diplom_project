@@ -2,7 +2,7 @@
 import math
 import uuid
 
-from flask import Blueprint, abort, flash, jsonify, redirect, render_template, request, url_for
+from flask import Blueprint, abort, current_app, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 from sqlalchemy.exc import IntegrityError
 
@@ -19,6 +19,10 @@ admin_pickup_bp = Blueprint('admin_pickup', __name__)
 def require_owner():
     if current_user.role != 'admin':
         abort(403)
+    if not current_app.config.get('PICKUP_ADMIN_SCHEMA_READY', True):
+        if request.is_json:
+            return jsonify(error='Управление ПВЗ недоступно до обновления схемы базы данных.'), 503
+        return render_template('admin/pickup_unavailable.html'), 503
 
 
 @admin_pickup_bp.route('/geocode', methods=['POST'])

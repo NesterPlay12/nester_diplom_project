@@ -8,7 +8,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from sqlalchemy import event, inspect, text
 from datetime import datetime, timezone
 from contextlib import contextmanager
-from .models import db, User
+from .models import db, User, DemoPickupPoint
 from .config import Config
 from .oauth import init_oauth, oauth
 
@@ -19,6 +19,41 @@ login_manager = LoginManager()
 login_manager.session_protection = 'basic'
 csrf = CSRFProtect()
 _schema_init_lock = threading.RLock()
+
+
+def _check_schema_readiness(app):
+    """Required commerce tables fail closed; optional PVZ editing is isolated.
+
+    No DDL or writes. A pending additive PVZ migration must not take the
+    catalogue, authentication and checkout offline.
+    """
+    inspector = inspect(db.engine)
+    for table in db.metadata.sorted_tables:
+        exists = inspector.has_table(table.name)
+        present = (
+            {column['name'] for column in inspector.get_columns(table.name)}
+            if exists else set()
+        )
+        ready = exists and set(table.c.keys()).issubset(present)
+        if table is DemoPickupPoint.__table__:
+            app.config['PICKUP_ADMIN_SCHEMA_READY'] = ready
+            if not ready:
+                app.logger.warning(
+                    'Pickup point editing is unavailable pending schema publication; '
+                    'the built-in demonstration catalogue remains active.'
+                )
+            continue
+        if not exists:
+            raise RuntimeError(
+                f'Required database table is missing: {table.name}. '
+                'Initialize development with manage.py init-schema; '
+                'apply managed production schema changes through Publish.'
+            )
+        if not ready:
+            raise RuntimeError(
+                f'Required database table is outdated: {table.name}; '
+                'apply the approved schema update.'
+            )
 
 
 def create_app(config_overrides=None):
@@ -84,16 +119,7 @@ def create_app(config_overrides=None):
                 _run_migrations()
     elif not app.config.get('TESTING'):
         with app.app_context():
-            inspector = inspect(db.engine)
-            for table in db.metadata.sorted_tables:
-                if not inspector.has_table(table.name):
-                    raise RuntimeError(
-                        'Database schema is not initialized. Initialize development '
-                        'with manage.py init-schema; managed production uses Publish.'
-                    )
-                present = {column['name'] for column in inspector.get_columns(table.name)}
-                if not set(table.c.keys()).issubset(present):
-                    raise RuntimeError('Database schema is outdated; apply the approved schema update.')
+            _check_schema_readiness(app)
 
     if app.config.get('ENVIRONMENT') == 'production':
         # Preserve imported demo records, but never publish usable demo logins.

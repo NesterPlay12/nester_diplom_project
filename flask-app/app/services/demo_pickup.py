@@ -6,7 +6,7 @@ Data attribution: https://www.openstreetmap.org/copyright (ODbL).
 """
 import hashlib
 import random
-from flask import has_app_context
+from flask import current_app, has_app_context
 from ..models import DemoPickupPoint
 
 _LOCATIONS = {
@@ -96,7 +96,7 @@ def managed_catalog():
                 'work_time': 'Демо: реальная выдача посылок не производится',
                 'is_demo': True, 'is_active': True,
             }
-    if has_app_context():
+    if has_app_context() and current_app.config.get('PICKUP_ADMIN_SCHEMA_READY', True):
         for row in DemoPickupPoint.query.all():
             points[row.id] = {
                 'id': row.id, 'provider': 'demo', 'city': row.city,
