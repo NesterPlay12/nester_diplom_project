@@ -621,6 +621,58 @@ class MarketplaceTestCase(unittest.TestCase):
         with self.app.app_context():
             self.assertIsNotNone(db.session.get(Order, order_id))
 
+    def _assert_review_aggregate_roundtrip(self, count, mean):
+        from app.services.demo_reviews import review_page
+        with self.app.app_context():
+            product = db.session.get(Product, self.product_id)
+            product.review_count, product.rating = count, mean
+            order = Order(
+                user_id=self.user_id, total=100, address='Delivered test order',
+                status='delivered',
+            )
+            db.session.add(order)
+            db.session.flush()
+            db.session.add(OrderItem(
+                order_id=order.id, product_id=product.id, product_name=product.name,
+                quantity=1, price=100,
+            ))
+            db.session.commit()
+        self.login()
+        response = self.client.post(f'/product/{self.product_id}/review', data={
+            'rating': '1', 'text': '',
+        })
+        self.assertEqual(response.status_code, 302)
+        with self.app.app_context():
+            product = db.session.get(Product, self.product_id)
+            self.assertEqual(product.review_count, count + 1)
+            self.assertAlmostEqual(product.rating, (mean * count + 1) / (count + 1))
+            feed = review_page(product, Review.query.filter_by(product_id=product.id))
+            self.assertEqual(feed.real_count, 1)
+            self.assertEqual(feed.demo_count, count)
+            review_id = Review.query.filter_by(product_id=product.id).one().id
+        # A repeated submission must not increment the aggregate a second time.
+        self.client.post(f'/product/{self.product_id}/review', data={'rating': '5'})
+        with self.app.app_context():
+            self.assertEqual(db.session.get(Product, self.product_id).review_count, count + 1)
+        self.client.post('/auth/logout')
+        self.login(email='moderator@example.test')
+        response = self.client.post(f'/admin/reviews/{review_id}/delete')
+        self.assertEqual(response.status_code, 302)
+        with self.app.app_context():
+            product = db.session.get(Product, self.product_id)
+            self.assertEqual(product.review_count, count)
+            self.assertAlmostEqual(product.rating, mean)
+            feed = review_page(product, Review.query.filter_by(product_id=product.id))
+            self.assertEqual(feed.real_count, 0)
+            self.assertEqual(feed.demo_count, count)
+        self.assertEqual(self.client.post(f'/admin/reviews/{review_id}/delete').status_code, 404)
+
+    def test_real_review_add_delete_preserves_imported_ratings_and_demo_examples(self):
+        self._assert_review_aggregate_roundtrip(342, 4.8)
+
+    def test_real_review_add_delete_on_new_product_returns_to_zero(self):
+        self._assert_review_aggregate_roundtrip(0, 0)
+
     def test_demo_reviews_fill_exact_counter_without_changing_rating_or_database(self):
         from app.services.demo_reviews import review_page
         with self.app.app_context():

@@ -5,11 +5,13 @@ Never called by web startup or deployment. Backup objects have no public ACL.
 import hashlib
 import json
 import os
+import secrets
 from pathlib import Path
 import sqlite3
 from datetime import datetime, timezone
 
 from sqlalchemy import create_engine, inspect, select, text
+from werkzeug.security import generate_password_hash
 
 from ..models import db
 
@@ -17,6 +19,44 @@ DEMO_EMAILS = (
     'admin@wildmarket.ru', 'moder@wildmarket.ru', 'seller1@wildmarket.ru',
     'seller2@wildmarket.ru', 'ivan@example.ru',
 )
+
+
+def deactivate_demo_accounts(connection):
+    """Retain all rows and relationships; irreversibly disable known demo access.
+
+    The caller owns the transaction. No passwords or account data are logged.
+    Already secured records are unchanged on subsequent runs.
+    """
+    users = db.metadata.tables['users']
+    candidates = connection.execute(select(users.c.id).where(
+        db.func.lower(db.func.trim(users.c.email)).in_(DEMO_EMAILS),
+        db.or_(users.c.is_active.is_not(False), users.c.has_local_password.is_not(False)),
+    )).scalars().all()
+    for user_id in candidates:
+        connection.execute(users.update().where(users.c.id == user_id).values(
+            is_active=False,
+            has_local_password=False,
+            password_hash=generate_password_hash(secrets.token_urlsafe(48)),
+        ))
+    return len(candidates)
+
+
+def assert_safe_production_accounts():
+    from ..models import User
+
+    known_demo = db.func.lower(db.func.trim(User.email)).in_(DEMO_EMAILS)
+    if User.query.filter(known_demo, User.is_active.is_(True)).first():
+        raise RuntimeError(
+            'Active demo accounts exist. Secure or deactivate them before production.'
+        )
+    if not User.query.filter(
+        ~known_demo, User.is_active.is_(True), User.role == 'admin',
+        db.or_(User.has_local_password.is_(True), db.func.length(User.google_id) > 0),
+    ).first():
+        raise RuntimeError(
+            'An active non-demo administrator is required before production. '
+            'Create one with manage.py create-admin in development.'
+        )
 
 
 def require_development():
@@ -195,7 +235,13 @@ def restore_development(manifest_path):
                 names = ', '.join('"' + t.name + '"' for t in db.metadata.sorted_tables)
                 target.exec_driver_sql(f'LOCK TABLE {names} IN ACCESS EXCLUSIVE MODE')
                 copy_rows(source, target)
-        print('Development database restored and verified from private backup.')
+                # Verify the lossless copy first, then apply the owner-approved
+                # access restriction before restored records become visible.
+                secured = deactivate_demo_accounts(target)
+        print(
+            'Development database restored and verified from private backup. '
+            f'Demo accounts secured: {secured}. Confirm a real administrator before production.'
+        )
     finally:
         engine.dispose()
         downloaded.unlink(missing_ok=True)

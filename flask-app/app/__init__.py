@@ -97,15 +97,9 @@ def create_app(config_overrides=None):
 
     if app.config.get('ENVIRONMENT') == 'production':
         # Preserve imported demo records, but never publish usable demo logins.
-        from .services.database_transfer import DEMO_EMAILS
+        from .services.database_transfer import assert_safe_production_accounts
         with app.app_context():
-            if User.query.filter(
-                db.func.lower(User.email).in_(DEMO_EMAILS),
-                User.is_active.is_(True),
-            ).first():
-                raise RuntimeError(
-                    'Active demo accounts exist. Secure or deactivate them before production.'
-                )
+            assert_safe_production_accounts()
 
     # Передаём флаг Google OAuth во все шаблоны
     @app.context_processor

@@ -5,6 +5,7 @@ from sqlalchemy.exc import IntegrityError
 from ..models import db, User, Product, Category, Order, Review
 from ..services.orders import ORDER_TRANSITIONS, transition_order, is_legacy_test_order
 from ..services.product_input import apply_product_form, parse_product_form
+from ..services.review_totals import remove_rating
 
 admin_bp = Blueprint('admin', __name__)
 
@@ -85,6 +86,9 @@ def toggle_user(user_id):
         return redirect(url_for('admin.users'))
     if current_user.role != 'admin' and user.role == 'admin':
         flash('Только администратор может управлять аккаунтом администратора', 'danger')
+        return redirect(url_for('admin.users'))
+    if not user.is_active and user.is_demo_account:
+        flash('Демонстрационный аккаунт нельзя разблокировать: его доступ отключён для безопасности.', 'warning')
         return redirect(url_for('admin.users'))
     user.is_active = not user.is_active
     db.session.commit()
@@ -297,12 +301,16 @@ def reviews():
 @admin_required
 def delete_review(review_id):
     review = db.get_or_404(Review, review_id)
-    product = review.product
+    product = db.session.execute(
+        db.select(Product).where(Product.id == review.product_id).with_for_update()
+    ).scalar_one()
+    # Refresh after obtaining the product lock: another administrator may have
+    # deleted this review while this request was waiting.
+    review = db.session.get(Review, review_id, populate_existing=True)
+    if review is None:
+        return redirect(url_for('admin.reviews'))
+    remove_rating(product, review.rating)
     db.session.delete(review)
-    db.session.flush()
-    remaining = Review.query.filter_by(product_id=product.id).all()
-    product.review_count = len(remaining)
-    product.rating = round(sum(item.rating for item in remaining) / len(remaining), 1) if remaining else 0
     db.session.commit()
     flash('Отзыв удалён', 'info')
     return redirect(url_for('admin.reviews'))

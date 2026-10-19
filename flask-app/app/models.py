@@ -51,6 +51,11 @@ class User(UserMixin, db.Model):
         return check_password_hash(self.password_hash, password)
 
     @property
+    def is_demo_account(self):
+        from .services.database_transfer import DEMO_EMAILS
+        return self.email.strip().lower() in DEMO_EMAILS
+
+    @property
     def is_admin(self):
         return self.role in ('admin', 'moderator')
 

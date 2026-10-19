@@ -69,12 +69,16 @@
                     </td>
                     <td class="small text-muted">{{ user.created_at.strftime('%d.%m.%Y') }}</td>
                     <td>
+                        {% if user.is_demo_account and not user.is_active %}
+                        <span class="badge text-bg-secondary">Демо-доступ отключён</span>
+                        {% else %}
                         <form action="{{ url_for('admin.toggle_user', user_id=user.id) }}" method="post">
                             {% include '_csrf_field.html' %}
                             <button type="submit" class="btn btn-sm {% if user.is_active %}btn-outline-danger{% else %}btn-outline-success{% endif %}">
                                 {% if user.is_active %}Блок{% else %}Разблок{% endif %}
                             </button>
                         </form>
+                        {% endif %}
                     </td>
                 </tr>
                 {% endfor %}

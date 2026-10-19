@@ -12,6 +12,8 @@ from app.models import db, User
 
 
 def create_admin():
+    from app.services.database_transfer import DEMO_EMAILS, require_development
+    require_development()
     app = create_app()
     with app.app_context():
         username = input('Administrator username: ').strip().lower()
@@ -20,6 +22,8 @@ def create_admin():
             raise SystemExit('Username must be between 3 and 80 characters.')
         if not re.fullmatch(r'[^@\s]+@[^@\s]+\.[^@\s]+', email) or len(email) > 120:
             raise SystemExit('Enter a valid email address.')
+        if email in DEMO_EMAILS:
+            raise SystemExit('A real administrator must not use a known demo email address.')
         if User.query.filter(
             func.lower(User.username) == username.lower()
         ).first() or User.query.filter(func.lower(User.email) == email).first():
@@ -49,10 +53,20 @@ if __name__ == '__main__':
     commands.add_parser('create-admin')
     commands.add_parser('init-schema', help='Development schema only; never run on production')
     commands.add_parser('restore-development', help='Restore verified backup only into empty development PG')
+    secure = commands.add_parser(
+        'secure-demo-accounts',
+        help='Disable known demo accounts without deleting rows (development only)',
+    )
+    secure.add_argument(
+        '--confirm', action='store_true',
+        help='Confirm irreversible replacement of demo passwords and disabling access',
+    )
     transfer = commands.add_parser('import-sqlite', help='Development-only lossless import')
     transfer.add_argument('source')
     transfer.add_argument('--backup-dir', default='../generated-artifacts/database-backups')
     args = parser.parse_args()
+    if args.command == 'secure-demo-accounts' and not args.confirm:
+        parser.error('Pass --confirm to disable demo access and irreversibly replace demo passwords.')
     if args.command == 'create-admin':
         create_admin()
     else:
@@ -74,5 +88,10 @@ if __name__ == '__main__':
             elif args.command == 'restore-development':
                 from pathlib import Path
                 restore_development(Path(__file__).parent / 'migration-manifest.json')
+            elif args.command == 'secure-demo-accounts':
+                from app.services.database_transfer import deactivate_demo_accounts
+                with db.engine.begin() as connection:
+                    secured = deactivate_demo_accounts(connection)
+                print(f'Demo accounts secured: {secured}. No records deleted.')
             else:
                 transfer_sqlite(args.source, args.backup_dir)

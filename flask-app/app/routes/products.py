@@ -1,8 +1,8 @@
 from flask import Blueprint, request, jsonify, redirect, url_for, flash
 from flask_login import login_required, current_user
-from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from ..models import db, Product, Review, Favorite, Order, OrderItem
+from ..services.review_totals import add_rating
 
 products_bp = Blueprint('products', __name__)
 
@@ -10,7 +10,9 @@ products_bp = Blueprint('products', __name__)
 @products_bp.route('/product/<int:product_id>/review', methods=['POST'])
 @login_required
 def add_review(product_id):
-    product = db.get_or_404(Product, product_id)
+    product = db.first_or_404(
+        db.select(Product).where(Product.id == product_id).with_for_update()
+    )
     purchased = (
         db.session.query(OrderItem.id)
         .join(Order, Order.id == OrderItem.order_id)
@@ -43,13 +45,7 @@ def add_review(product_id):
     db.session.add(review)
     try:
         db.session.flush()
-        product.rating = round(
-            db.session.query(func.avg(Review.rating))
-            .filter(Review.product_id == product_id)
-            .scalar() or 0,
-            1,
-        )
-        product.review_count = Review.query.filter_by(product_id=product_id).count()
+        add_rating(product, rating)
         db.session.commit()
     except IntegrityError:
         db.session.rollback()
