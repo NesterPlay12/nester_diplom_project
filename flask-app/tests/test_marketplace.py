@@ -560,6 +560,12 @@ class MarketplaceTestCase(unittest.TestCase):
         self.assertEqual(self.client.post('/cart/checkout', data=form).status_code, 302)
         with self.app.app_context():
             order = Order.query.one()
+            from app.services.pickup_delivery_price import calculate_pickup_delivery_price
+            _distance_km, expected_delivery_fee = calculate_pickup_delivery_price(point)
+            items_total = sum(item.subtotal for item in order.items)
+            self.assertAlmostEqual(
+                order.total, round(items_total + float(expected_delivery_fee), 2),
+            )
             self.assertNotIn('ДЕМО', order.address)
             self.assertIn('ПВЗ WildMarket', order.address)
             self.assertIn(point['address'], order.address)

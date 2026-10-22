@@ -142,6 +142,7 @@ def create_app(config_overrides=None):
     @app.context_processor
     def inject_google_oauth():
         from .services.demo_pickup import supported_cities
+        from .services.pickup_delivery_price import pickup_delivery_settings
         return {
             'demo_pickup_cities': supported_cities,
             'google_oauth_enabled': bool(
@@ -149,6 +150,7 @@ def create_app(config_overrides=None):
                 and app.config.get('GOOGLE_CLIENT_ID') and app.config.get('GOOGLE_CLIENT_SECRET')
             ),
             'delivery_demo_mode': app.config.get('DELIVERY_DEMO_MODE', False),
+            'pickup_delivery_pricing': pickup_delivery_settings(),
             'yandex_maps_api_key': app.config.get('YANDEX_MAPS_API_KEY', ''),
             'app_base_path': request.script_root.rstrip('/'),
             'current_year': datetime.now(timezone.utc).year,

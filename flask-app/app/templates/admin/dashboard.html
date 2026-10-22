@@ -184,7 +184,7 @@
                                 <tr>
                                     <td class="fw-bold">{{ order.id }}</td>
                                     <td>{{ order.user.username }}</td>
-                                    <td>{{ "{:,.0f}".format(order.total) }} ₽</td>
+                                    <td>{{ "{:,.2f}".format(order.total).rstrip('0').rstrip('.').replace(',', ' ').replace('.', ',') }} ₽</td>
                                     <td><span class="badge bg-{{ order.status_color }}">{{ order.status_label }}</span></td>
                                     <td class="text-muted small">{{ order.created_at.strftime('%d.%m.%Y %H:%M') }}</td>
                                 </tr>

@@ -10,6 +10,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from app import create_app
 from app.models import DemoPickupPoint, db
 from app.routes.delivery import verify_pickup_point
+from app.services.pickup_delivery_price import (
+    ORIGIN_LAT, ORIGIN_LNG, calculate_pickup_delivery_price,
+)
 
 
 class PickupCatalogTests(unittest.TestCase):
@@ -37,6 +40,16 @@ class PickupCatalogTests(unittest.TestCase):
         response = self.client.get('/delivery/pvz?provider=demo')
         self.assertEqual(response.status_code, 200)
         return response.get_json()['pvz']
+
+    def test_pickup_delivery_price_starts_at_50_rubles(self):
+        distance, fee = calculate_pickup_delivery_price({
+            'lat': ORIGIN_LAT, 'lng': ORIGIN_LNG,
+        })
+        self.assertEqual(distance, 0)
+        self.assertEqual(str(fee), '50.00')
+
+        with self.assertRaises(ValueError):
+            calculate_pickup_delivery_price({'lat': None, 'lng': ORIGIN_LNG})
 
     def test_city_is_not_required_and_every_added_city_is_returned(self):
         points = self.all_points()
@@ -118,6 +131,9 @@ class PickupCatalogTests(unittest.TestCase):
         self.assertNotIn('Получение посылок по этим адресам пока недоступно.', html)
         self.assertNotIn('не действующие пункты выдачи', html)
         self.assertNotIn('Онлайн-оплата не подключена.', html)
+        self.assertNotIn('Стоимость уточняется', html)
+        self.assertIn('id="delivery-cost"', html)
+        self.assertIn('id="checkout-total"', html)
         self.assertIn('id="pvz-city-selected"', html)
 
 

@@ -9,6 +9,7 @@
   let clusterer = null;
   let selectedPvz = null;
   let allPvz = [];
+  let markerById = new Map();
   let unavailableProviders = {};
   let currentProvider = 'all';
   let mapCityUnresolved = false;
@@ -39,6 +40,55 @@
     return String(value || '').replace(/[&<>"']/g, ch => ({
       '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
     }[ch]));
+  }
+
+  function formatRub(value) {
+    return `${new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 }).format(value)} ₽`;
+  }
+
+  function calculateDeliveryQuote(pvz) {
+    const cost = qs('delivery-cost');
+    const originLat = Number(cost?.dataset.originLat);
+    const originLng = Number(cost?.dataset.originLng);
+    const lat = Number(pvz.lat);
+    const lng = Number(pvz.lng);
+    if (![originLat, originLng, lat, lng].every(Number.isFinite)) return null;
+
+    const toRadians = value => value * Math.PI / 180;
+    const deltaLat = toRadians(lat - originLat);
+    const deltaLng = toRadians(lng - originLng);
+    const a = Math.sin(deltaLat / 2) ** 2
+      + Math.cos(toRadians(originLat)) * Math.cos(toRadians(lat))
+      * Math.sin(deltaLng / 2) ** 2;
+    const distanceKm = Math.round(
+      2 * 6371.0088 * Math.asin(Math.sqrt(Math.min(1, a))) * 1000
+    ) / 1000;
+    const baseFee = Number(cost.dataset.baseFee);
+    const perKm = Number(cost.dataset.perKm);
+    const fee = Math.round((baseFee + distanceKm * perKm) * 100) / 100;
+    return { distanceKm, fee, originCity: cost.dataset.originCity };
+  }
+
+  function updateDeliverySummary(quote = null) {
+    const cost = qs('delivery-cost');
+    const distance = qs('delivery-distance');
+    const total = qs('checkout-total');
+    const itemsTotal = Number(total?.dataset.itemsTotal || 0);
+    if (!quote) {
+      if (cost) cost.textContent = '—';
+      if (distance) distance.textContent = '';
+      if (total) total.textContent = formatRub(itemsTotal);
+      return;
+    }
+
+    if (cost) cost.textContent = formatRub(quote.fee);
+    if (distance) {
+      const km = new Intl.NumberFormat('ru-RU', {
+        minimumFractionDigits: 1, maximumFractionDigits: 1,
+      }).format(quote.distanceKm);
+      distance.textContent = `${km} км от ${quote.originCity} · 50 ₽ + 0,4 ₽/км`;
+    }
+    if (total) total.textContent = formatRub(itemsTotal + quote.fee);
   }
 
   function markerLayout(pvz) {
@@ -94,12 +144,6 @@
     });
     renderMarkers(filtered());
     map.geoObjects.add(clusterer);
-    document.addEventListener('click', e => {
-      const button = e.target.closest('.btn-select-pvz');
-      if (!button) return;
-      const pvz = allPvz.find(item => item.id === button.dataset.pvzId);
-      if (pvz) selectPvz(pvz);
-    });
     qs('pvz-map-search')?.addEventListener('keydown', e => {
       if (e.key === 'Enter' && e.target.value.trim()) {
         e.preventDefault();
@@ -127,13 +171,14 @@
   function renderMarkers(list) {
     if (!map || !clusterer) return;
     clusterer.removeAll();
+    markerById = new Map();
     const geoObjects = list.filter(p => Number.isFinite(Number(p.lat)) && Number.isFinite(Number(p.lng))).map(pvz => {
       const point = new ymaps.Placemark([pvz.lat, pvz.lng], {
         name: escapeHtml(pvz.name), address: escapeHtml(pvz.address),
         balloonContentBody: popupHtml(pvz),
         hintContent: `${PROVIDER_LABEL[pvz.provider]} · ${escapeHtml(pvz.address)}`,
       }, markerLayout(pvz));
-      point.events.add('click', () => selectPvz(pvz));
+      markerById.set(pvz.id, point);
       return point;
     });
     clusterer.add(geoObjects);
@@ -151,16 +196,19 @@
       return;
     }
     container.innerHTML = list.map(pvz => `
-      <button type="button" class="pvz-list-item mb-1 text-start w-100" data-pvz-id="${escapeHtml(pvz.id)}">
-        <div class="small fw-semibold">${escapeHtml(pvz.address)}</div>
-        <div class="pvz-address small mt-1">${escapeHtml(pvz.name)}</div>
-        <div class="pvz-meta mt-1">${escapeHtml(PROVIDER_LABEL[pvz.provider] || 'Пункт выдачи')}${pvz.work_time && pvz.provider !== 'demo' ? ` · ${escapeHtml(pvz.work_time)}` : ''}</div>
-      </button>`).join('');
+      <div class="pvz-entry mb-2">
+        <button type="button" class="pvz-list-item mb-1 text-start w-100" data-pvz-id="${escapeHtml(pvz.id)}">
+          <div class="small fw-semibold">${escapeHtml(pvz.address)}</div>
+          <div class="pvz-address small mt-1">${escapeHtml(pvz.name)}</div>
+          <div class="pvz-meta mt-1">${escapeHtml(PROVIDER_LABEL[pvz.provider] || 'Пункт выдачи')}${pvz.work_time && pvz.provider !== 'demo' ? ` · ${escapeHtml(pvz.work_time)}` : ''}</div>
+        </button>
+        <button type="button" class="btn btn-wb btn-sm w-100 btn-select-pvz" data-pvz-id="${escapeHtml(pvz.id)}">Выбрать этот пункт</button>
+      </div>`).join('');
     container.querySelectorAll('.pvz-list-item').forEach(item => item.addEventListener('click', () => {
       const pvz = list.find(point => point.id === item.dataset.pvzId);
       if (!pvz) return;
-      selectPvz(pvz);
       map?.setCenter([pvz.lat, pvz.lng], 15);
+      markerById.get(pvz.id)?.balloon?.open();
     }));
     highlightList();
   }
@@ -174,6 +222,15 @@
   function selectPvz(pvz) {
     if (loading || !catalogLoaded || !allPvz.includes(pvz)) return;
     if (!allCities && loadedCity !== qs('pvz-city')?.value.trim()) return;
+    const quote = calculateDeliveryQuote(pvz);
+    if (!quote) {
+      const status = qs('pvz-status');
+      if (status) {
+        status.textContent = 'Не удалось рассчитать доставку: у пункта нет корректных координат.';
+        status.hidden = false;
+      }
+      return;
+    }
     selectedPvz = pvz;
     if (qs('pvz-provider')) qs('pvz-provider').value = pvz.provider;
     if (qs('pvz-id')) qs('pvz-id').value = pvz.id;
@@ -182,16 +239,11 @@
     if (display) display.value = pvz.address;
     const card = qs('selected-pvz-card');
     if (card) {
-      card.style.display = 'block';
-      card.innerHTML = `<div class="d-flex justify-content-between align-items-start gap-2">
-        <div><span class="badge text-white mb-2" style="background:${PROVIDER_COLOR[pvz.provider]}">${PROVIDER_LABEL[pvz.provider]}</span>
-          <div class="fw-bold">${escapeHtml(pvz.name)}</div>
-          <div class="small text-muted mt-1"><i class="bi bi-geo-alt me-1"></i>${escapeHtml(pvz.address)}</div>
-           ${pvz.provider !== 'demo' ? `<div class="small text-muted mt-1"><i class="bi bi-clock me-1"></i>${escapeHtml(pvz.work_time || '')}</div>` : ''}
-        </div><button type="button" class="btn btn-sm btn-outline-secondary" id="btn-change-pvz">Изменить</button>
-      </div>`;
-      qs('btn-change-pvz')?.addEventListener('click', clearPvz);
+      card.style.display = 'none';
+      card.innerHTML = '';
     }
+    updateDeliverySummary(quote);
+    map?.balloon?.close();
     highlightList();
   }
 
@@ -205,6 +257,7 @@
       qs('selected-pvz-card').style.display = 'none';
       qs('selected-pvz-card').innerHTML = '';
     }
+    updateDeliverySummary();
     highlightList();
   }
 
@@ -337,6 +390,12 @@
   }
 
   document.addEventListener('DOMContentLoaded', () => {
+    document.addEventListener('click', e => {
+      const button = e.target.closest?.('.btn-select-pvz');
+      if (!button) return;
+      const pvz = allPvz.find(item => item.id === button.dataset.pvzId);
+      if (pvz) selectPvz(pvz);
+    });
     document.querySelectorAll('input[name="delivery_type"]').forEach(radio => radio.addEventListener('change', onDeliveryTypeChange));
     onDeliveryTypeChange();
     qs('btn-reload-pvz')?.addEventListener('click', () => loadPvz());

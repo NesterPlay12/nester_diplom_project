@@ -25,8 +25,16 @@
                 <div class="fw-bold">{{ "{:,.0f}".format(item.subtotal) }} ₽</div>
             </div>
             {% endfor %}
+            {% set items_total = order.items|sum(attribute='subtotal') %}
+            {% set delivery_fee = (order.total - items_total)|round(2) %}
+            {% if delivery_fee > 0 %}
+            <div class="d-flex justify-content-between text-muted mt-3">
+                <span>Доставка</span>
+                <span>{{ "{:,.2f}".format(delivery_fee).rstrip('0').rstrip('.').replace(',', ' ').replace('.', ',') }} ₽</span>
+            </div>
+            {% endif %}
             <div class="d-flex justify-content-end fw-bold fs-5 mt-3 pt-2 border-top">
-                <span class="text-wb">Итого: {{ "{:,.0f}".format(order.total) }} ₽</span>
+                <span class="text-wb">Итого: {{ "{:,.2f}".format(order.total).rstrip('0').rstrip('.').replace(',', ' ').replace('.', ',') }} ₽</span>
             </div>
         </div>
     </div>

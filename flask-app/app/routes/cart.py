@@ -7,6 +7,7 @@ from sqlalchemy.exc import IntegrityError
 
 from ..models import db, CartItem, Product, Order, OrderItem
 from .delivery import verify_pickup_point
+from ..services.pickup_delivery_price import calculate_pickup_delivery_price
 
 cart_bp = Blueprint('cart', __name__)
 
@@ -166,6 +167,7 @@ def checkout():
 
     delivery_type = request.form.get('delivery_type', 'courier')
     address = request.form.get('address', '').strip()
+    delivery_fee = 0.0
     if delivery_type == 'pickup':
         point = verify_pickup_point(
             request.form.get('pvz_provider', ''),
@@ -174,6 +176,11 @@ def checkout():
         )
         if not point:
             flash('Выберите доступный пункт на карте для указанного города.', 'warning')
+            return render_template('checkout.html', items=items, total=total), 400
+        try:
+            _distance_km, delivery_fee = calculate_pickup_delivery_price(point)
+        except ValueError as error:
+            flash(str(error), 'danger')
             return render_template('checkout.html', items=items, total=total), 400
         prefix = 'ПВЗ WildMarket' if point.get('is_demo') else f"ПВЗ {point['provider'].upper()}"
         address = f"{prefix} — {point['name']}, {point['address']}"
@@ -221,7 +228,7 @@ def checkout():
     order = Order(
         user_id=current_user.id,
         status='pending',
-        total=total,
+        total=round(total + float(delivery_fee), 2),
         address=address,
         payment_method=payment_method,
         phone=phone or current_user.phone,
@@ -262,5 +269,5 @@ def checkout():
         db.session.delete(item)
 
     db.session.commit()
-    flash(f'Заказ #{order.id} сохранён в WildMarket. Отправление у перевозчика не создано; стоимость и условия доставки требуют подтверждения.', 'success')
+    flash(f'Заказ #{order.id} сохранён в WildMarket. Отправление у перевозчика не создано.', 'success')
     return redirect(url_for('account.order_detail', order_id=order.id))

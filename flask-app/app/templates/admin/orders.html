@@ -36,7 +36,7 @@
                 <tr>
                     <td class="fw-bold">#{{ order.id }}</td>
                     <td>{{ order.user.username }}</td>
-                    <td class="fw-semibold">{{ "{:,.0f}".format(order.total) }} ₽</td>
+                    <td class="fw-semibold">{{ "{:,.2f}".format(order.total).rstrip('0').rstrip('.').replace(',', ' ').replace('.', ',') }} ₽</td>
                     <td>{{ order.items|length }}</td>
                     <td class="small text-muted" style="max-width:180px;">
                         <span class="text-truncate d-block">{{ order.address|replace('ДЕМО — не для реальной доставки — ', '') }}</span>

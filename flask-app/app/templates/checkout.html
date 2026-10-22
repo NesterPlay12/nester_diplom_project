@@ -253,19 +253,25 @@
       </div>
       <div class="d-flex justify-content-between mb-1">
         <span class="text-muted">Доставка</span>
-        <span class="text-muted">Стоимость уточняется</span>
+        <span id="delivery-cost"
+              data-origin-city="{{ pickup_delivery_pricing.origin_city }}"
+              data-origin-lat="{{ pickup_delivery_pricing.origin_lat }}"
+              data-origin-lng="{{ pickup_delivery_pricing.origin_lng }}"
+              data-base-fee="{{ pickup_delivery_pricing.base_fee_rub }}"
+              data-per-km="{{ pickup_delivery_pricing.per_km_rub }}">—</span>
       </div>
+      <div id="delivery-distance" class="small text-muted mb-2"></div>
       <hr>
       <div class="d-flex justify-content-between fw-bold fs-5 mb-4">
-        <span>Товары</span>
-        <span class="text-wb">{{ "{:,.0f}".format(total) }} ₽</span>
+        <span>К оплате</span>
+        <span id="checkout-total" class="text-wb" data-items-total="{{ total }}">{{ "{:,.0f}".format(total) }} ₽</span>
       </div>
       <button type="submit" class="btn btn-wb w-100 btn-lg fw-bold">
         <i class="bi bi-bag-check me-2"></i>Подтвердить заказ
       </button>
       <p class="small text-muted mt-3 mb-0">
         Подтверждение сохраняет заказ только в WildMarket, но не создаёт отправление у перевозчика.
-        Доставка не включена в сумму товаров: стоимость и условия нужно подтвердить отдельно.
+        Для самовывоза стоимость рассчитывается по расстоянию от Новомосковска; условия курьерской доставки подтверждаются отдельно.
       </p>
     </div>
   </div>
