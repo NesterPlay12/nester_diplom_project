@@ -88,7 +88,7 @@ def toggle_user(user_id):
         flash('Только администратор может управлять аккаунтом администратора', 'danger')
         return redirect(url_for('admin.users'))
     if not user.is_active and user.is_demo_account:
-        flash('Демонстрационный аккаунт нельзя разблокировать: его доступ отключён для безопасности.', 'warning')
+        flash('Эту учётную запись нельзя разблокировать: доступ отключён из соображений безопасности.', 'warning')
         return redirect(url_for('admin.users'))
     user.is_active = not user.is_active
     db.session.commit()

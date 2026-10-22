@@ -118,7 +118,8 @@ class AccountSafetyTests(unittest.TestCase):
             demo = db.session.get(User, self.demo_id)
             self.assertFalse(demo.is_active)
             self.assertEqual(demo.google_id, 'demo-google-0')
-        self.assertIn('Демо-доступ отключён', admin_client.get('/admin/users').get_data(as_text=True))
+        self.assertIn('Доступ отключён', admin_client.get('/admin/users').get_data(as_text=True))
+        self.assertNotIn('Демо-доступ', admin_client.get('/admin/users').get_data(as_text=True))
         for client in (session_client, remember_client):
             for path in ('/account/', '/seller/', '/admin/', '/cart/checkout'):
                 with self.subTest(path=path):

@@ -196,7 +196,7 @@ def _example(product, index):
     # Some entries demonstrate rating without a comment, as in the real form.
     text = '' if index % 9 == 8 else f'{opening} {detail} {second_detail} {ending}'
     return ReviewEntry(
-        author=f'Демо-покупатель · {rng.choice(_NAMES)} {rng.choice(_INITIALS)}.',
+        author=f'{rng.choice(_NAMES)} {rng.choice(_INITIALS)}.',
         rating=rating, text=text, is_demo=True, sample_number=index + 1,
     )
 

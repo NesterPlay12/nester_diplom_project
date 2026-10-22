@@ -69,6 +69,6 @@
         ? fullAddress : `${city.value.trim()}, ${fullAddress}`);
     });
     map.events.add('click', event => locate(event.get('coords')));
-    status.textContent = 'Найдите адрес или выберите здание на карте. Это демонстрационный ПВЗ.';
+    status.textContent = 'Найдите адрес или выберите здание на карте.';
   });
 })();

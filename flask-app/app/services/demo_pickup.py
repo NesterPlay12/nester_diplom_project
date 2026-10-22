@@ -6,6 +6,7 @@ Data attribution: https://www.openstreetmap.org/copyright (ODbL).
 """
 import hashlib
 import random
+import re
 from flask import current_app, has_app_context
 from ..models import DemoPickupPoint
 
@@ -81,6 +82,13 @@ def normalize_city(city):
     return {'спб': 'санкт-петербург', 'петербург': 'санкт-петербург'}.get(normalized, normalized)
 
 
+def _visible_pickup_label(value, fallback):
+    value = str(value or '').strip()
+    if not value or re.search(r'демо|демонстрац|demo', value, re.IGNORECASE):
+        return fallback
+    return value
+
+
 def managed_catalog():
     """Defaults remain until explicitly overridden; disabled defaults never reappear."""
     points = {}
@@ -93,15 +101,17 @@ def managed_catalog():
                 'id': point_id, 'provider': 'demo', 'city': city,
                 'name': 'Точка WildMarket',
                 'address': full_address, 'lat': lat, 'lng': lng,
-                'work_time': 'Демо: реальная выдача посылок не производится',
+                'work_time': 'График уточняется',
                 'is_demo': True, 'is_active': True,
             }
     if has_app_context() and current_app.config.get('PICKUP_ADMIN_SCHEMA_READY', True):
         for row in DemoPickupPoint.query.all():
             points[row.id] = {
                 'id': row.id, 'provider': 'demo', 'city': row.city,
-                'name': row.name, 'address': row.address, 'lat': row.lat, 'lng': row.lng,
-                'work_time': row.work_time, 'is_demo': True, 'is_active': row.is_active,
+                'name': _visible_pickup_label(row.name, 'Пункт выдачи'),
+                'address': row.address, 'lat': row.lat, 'lng': row.lng,
+                'work_time': _visible_pickup_label(row.work_time, 'График уточняется'),
+                'is_demo': True, 'is_active': row.is_active,
             }
     return points
 

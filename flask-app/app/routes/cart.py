@@ -175,7 +175,7 @@ def checkout():
         if not point:
             flash('Выберите доступный пункт на карте для указанного города.', 'warning')
             return render_template('checkout.html', items=items, total=total), 400
-        prefix = 'ДЕМО — не для реальной доставки' if point.get('is_demo') else f"ПВЗ {point['provider'].upper()}"
+        prefix = 'ПВЗ WildMarket' if point.get('is_demo') else f"ПВЗ {point['provider'].upper()}"
         address = f"{prefix} — {point['name']}, {point['address']}"
     elif delivery_type != 'courier':
         flash('Выбран неизвестный способ доставки.', 'danger')

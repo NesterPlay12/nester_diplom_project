@@ -1,8 +1,7 @@
 {% extends 'admin/dashboard.html' %}
-{% block page_title %}Демонстрационные ПВЗ{% endblock %}
+{% block page_title %}Пункты выдачи{% endblock %}
 {% block admin_content %}
 <div class="alert alert-info">
-    Это демонстрационные адреса для показа оформления заказа, не действующие пункты операторов.
     Изменения применяются к карте сразу после сохранения. Ранее оформленные заказы не изменяются.
 </div>
 <div class="d-flex flex-wrap justify-content-between gap-3 mb-3">
@@ -21,7 +20,7 @@
                 {% for point in points %}
                 <tr>
                     <td><strong>{{ point.city }}</strong><div class="small">{{ point.address }}</div><small class="text-muted">{{ point.lat }}, {{ point.lng }}</small></td>
-                    <td>{{ point.name }}<div class="small text-muted">{{ point.work_time }}</div><span class="badge text-bg-light border">Демо</span></td>
+                    <td>{{ point.name }}<div class="small text-muted">{{ point.work_time }}</div></td>
                     <td><span class="badge {{ 'text-bg-success' if point.is_active else 'text-bg-secondary' }}">{{ 'Включён' if point.is_active else 'Отключён' }}</span></td>
                     <td>
                         <div class="d-flex flex-wrap gap-2">

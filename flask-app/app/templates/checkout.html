@@ -101,13 +101,6 @@
     {# ── Самовывоз из ПВЗ ── #}
     <div id="section-pickup" class="bg-white rounded-3 p-4 shadow-sm mb-4" style="display:none">
       <h5 class="fw-bold mb-3"><i class="bi bi-shop me-2 text-wb"></i>Выберите пункт выдачи</h5>
-      {% if delivery_demo_mode %}
-      <div class="alert alert-warning small" role="note">
-        На карте — адреса для ознакомления, не действующие пункты выдачи.
-        Получение посылок по этим адресам пока недоступно.
-      </div>
-      {% endif %}
-
       {% if not delivery_demo_mode %}
       {# Официальный каталог оператора по-прежнему требует город. #}
       <div class="d-flex gap-2 mb-3">

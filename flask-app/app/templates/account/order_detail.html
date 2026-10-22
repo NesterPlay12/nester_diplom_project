@@ -40,7 +40,7 @@
             </div>
             <div class="mb-2">
                 <small class="text-muted d-block">Адрес доставки</small>
-                <span>{{ order.address }}</span>
+                <span>{{ order.address|replace('ДЕМО — не для реальной доставки — ', '') }}</span>
             </div>
             <div class="mb-2">
                 <small class="text-muted d-block">Оплата</small>

@@ -39,7 +39,7 @@
                     <td class="fw-semibold">{{ "{:,.0f}".format(order.total) }} ₽</td>
                     <td>{{ order.items|length }}</td>
                     <td class="small text-muted" style="max-width:180px;">
-                        <span class="text-truncate d-block">{{ order.address }}</span>
+                        <span class="text-truncate d-block">{{ order.address|replace('ДЕМО — не для реальной доставки — ', '') }}</span>
                     </td>
                     <td><span class="badge bg-{{ order.status_color }}">{{ order.status_label }}</span></td>
                     <td class="small text-muted">{{ order.created_at.strftime('%d.%m.%Y %H:%M') }}</td>

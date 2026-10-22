@@ -30,9 +30,6 @@
                 {% endfor %}
             </div>
             <span class="text-muted">{{ product.rating|round(1) }} ({{ review_feed.total }} оценок)</span>
-            {% if review_feed.demo_count %}
-            <span class="badge text-bg-light border" title="Оценка каталога сохранена; примеры отзывов демонстрационные">Демо-данные</span>
-            {% endif %}
             <a href="#reviews" class="text-wb text-decoration-none small">Читать отзывы</a>
         </div>
 
@@ -129,18 +126,6 @@
 
 <div id="reviews" class="mb-4">
     <h3 class="h5 fw-bold mb-3">Отзывы и оценки ({{ review_feed.total }})</h3>
-    {% if review_feed.demo_count %}
-    <div class="alert alert-info small">
-        <strong>Демонстрационные отзывы.</strong>
-        {{ review_feed.demo_count }} примеров сгенерировано для показа интерфейса —
-        это не мнения настоящих покупателей и не подтверждение покупок.
-        Оценка товара сохранена без пересчёта.
-        {% if review_feed.real_count %}
-        Настоящих отзывов и оценок: {{ review_feed.real_count }}; они показаны первыми.
-        {% endif %}
-    </div>
-    {% endif %}
-
     {% if can_review %}
     <div class="bg-white rounded-3 p-4 mb-3 shadow-sm">
         <h6 class="fw-semibold mb-3">Оставить отзыв</h6>
@@ -175,14 +160,12 @@
         <div class="d-flex justify-content-between align-items-start mb-1">
             <div>
                 <span class="fw-semibold">{{ review.author }}</span>
-                {% if review.is_demo %}<span class="badge text-bg-light border ms-1">Демо</span>{% endif %}
                 <span class="rating-stars ms-2">
                     {% for i in range(1,6) %}{% if i<=review.rating %}★{% else %}☆{% endif %}{% endfor %}
                 </span>
             </div>
             <small class="text-muted">
-                {% if review.is_demo %}Пример №{{ review.sample_number }}
-                {% else %}{{ review.created_at.strftime('%d.%m.%Y') }}{% endif %}
+                {% if not review.is_demo %}{{ review.created_at.strftime('%d.%m.%Y') }}{% endif %}
             </small>
         </div>
         {% if review.text %}<p class="mb-0 small">{{ review.text }}</p>

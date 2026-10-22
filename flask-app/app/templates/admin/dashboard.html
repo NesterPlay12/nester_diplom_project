@@ -68,7 +68,7 @@
             <div class="section-label">Заказы</div>
             {% if current_user.role == 'admin' %}
             <a href="{{ url_for('admin_pickup.index') }}" class="nav-link {% if request.blueprint=='admin_pickup' %}active{% endif %}">
-                <i class="bi bi-geo-alt"></i>Демонстрационные ПВЗ
+                <i class="bi bi-geo-alt"></i>Пункты выдачи
             </a>
             {% endif %}
             <a href="{{ url_for('admin.orders') }}" class="nav-link {% if request.endpoint=='admin.orders' %}active{% endif %}">

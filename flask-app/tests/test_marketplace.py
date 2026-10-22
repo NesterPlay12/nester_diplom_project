@@ -446,7 +446,7 @@ class MarketplaceTestCase(unittest.TestCase):
         points = self.client.get('/delivery/pvz?city=Тула&provider=demo').get_json()['pvz']
         self.assertEqual(points[0]['id'], point_id)
         self.assertEqual(points[0]['lat'], 54.192)
-        self.assertEqual(points[0]['name'], values['name'])
+        self.assertEqual(points[0]['name'], 'Пункт выдачи')
         self.assertEqual(self.client.post('/admin/pickup-points/add', data=values).status_code, 400)
         self.assertEqual(self.client.post(
             f'/admin/pickup-points/{point_id}/toggle', data={'active': '0'},
@@ -560,7 +560,8 @@ class MarketplaceTestCase(unittest.TestCase):
         self.assertEqual(self.client.post('/cart/checkout', data=form).status_code, 302)
         with self.app.app_context():
             order = Order.query.one()
-            self.assertIn('ДЕМО — не для реальной доставки', order.address)
+            self.assertNotIn('ДЕМО', order.address)
+            self.assertIn('ПВЗ WildMarket', order.address)
             self.assertIn(point['address'], order.address)
             self.assertNotIn('forged address', order.address)
 
@@ -736,7 +737,11 @@ class MarketplaceTestCase(unittest.TestCase):
         text = last.get_data(as_text=True)
         self.assertIn('Отзывы и оценки (41)', text)
         self.assertIn('Показаны 41–41 из 41', text)
-        self.assertIn('Демо-покупатель', text)
+        self.assertNotIn('Демо-покупатель', text)
+        self.assertNotIn('Демонстрационные отзывы', text)
+        self.assertNotIn('Пример №', text)
+        self.assertNotIn('Демо-данные', text)
+        self.assertNotIn('>Демо<', text)
         self.assertEqual(
             self.client.get(f'/product/{self.product_id}?reviews_page=4').status_code, 404,
         )

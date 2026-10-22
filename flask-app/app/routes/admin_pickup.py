@@ -65,8 +65,8 @@ def edit(point_id=None):
     if point_id and original is None:
         abort(404)
     point = dict(original or {
-        'city': '', 'name': 'Демонстрационный пункт WildMarket', 'address': '',
-        'lat': '', 'lng': '', 'work_time': 'Демо: реальная выдача посылок не производится',
+        'city': '', 'name': 'Пункт выдачи WildMarket', 'address': '',
+        'lat': '', 'lng': '', 'work_time': 'График уточняется',
         'is_active': True,
     })
     errors = []
@@ -113,7 +113,7 @@ def edit(point_id=None):
                 db.session.rollback()
                 errors.append('Такой адрес уже сохранён другим администратором. Обновите список.')
             else:
-                flash('Демонстрационный ПВЗ сохранён. Изменения уже доступны на карте.', 'success')
+                flash('Пункт выдачи сохранён. Изменения уже доступны на карте.', 'success')
                 return redirect(url_for('admin_pickup.index'))
     return render_template('admin/pickup_edit.html', point=point, editing=bool(point_id), errors=errors), 400 if errors else 200
 

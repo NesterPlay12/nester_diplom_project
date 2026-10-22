@@ -72,6 +72,18 @@ class PickupCatalogTests(unittest.TestCase):
             db.session.commit()
         self.assertNotIn(point['id'], {p['id'] for p in self.all_points()})
 
+    def test_catalog_hides_legacy_demo_labels_from_point_name_and_hours(self):
+        with self.app.app_context():
+            db.session.add(DemoPickupPoint(
+                id='demo-legacy-labels', city='Тула', name='Демонстрационный пункт',
+                address='Тула, проспект Ленина, 2', lat=54.193, lng=37.617,
+                work_time='Только демо', is_active=True,
+            ))
+            db.session.commit()
+        point = next(p for p in self.all_points() if p['id'] == 'demo-legacy-labels')
+        self.assertEqual(point['name'], 'Пункт выдачи')
+        self.assertEqual(point['work_time'], 'График уточняется')
+
     def test_disabled_default_is_not_restored_by_all_city_mode(self):
         point = self.all_points()[0]
         with self.app.app_context():
@@ -103,7 +115,8 @@ class PickupCatalogTests(unittest.TestCase):
         self.assertIn('id="btn-reload-pvz"', html)
         self.assertNotIn('Демонстрационный режим', html)
         self.assertNotIn('Демо-пункты', html)
-        self.assertIn('Получение посылок по этим адресам пока недоступно.', html)
+        self.assertNotIn('Получение посылок по этим адресам пока недоступно.', html)
+        self.assertNotIn('не действующие пункты выдачи', html)
         self.assertIn('id="pvz-city-selected"', html)
 
 
