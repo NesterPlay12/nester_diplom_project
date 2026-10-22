@@ -90,6 +90,15 @@
 Ключи не заменять. Ошибку Google Console нельзя исправить сменой базы или домена
 в шаблонах приложения.
 
+`GOOGLE_CLIENT_ID` и `GOOGLE_CLIENT_SECRET` хранятся в Replit Secrets, не в коде.
+При отсутствии явного `GOOGLE_REDIRECT_URI` приложение строит callback из адреса
+текущего запроса. Для production это
+`https://wildmarket.su/auth/google/callback`; адрес предпросмотра Replit отличается
+и должен отдельно присутствовать в списке разрешённых Google callback URI, если
+нужен вход непосредственно из preview. После восстановления секретов проверено,
+что кнопка регистрации видна и `/auth/google` перенаправляет на Google; полный
+вход с реальным Google-аккаунтом автоматической проверкой не выполнялся.
+
 ## Запуск
 
 - **Flask-приложение**: управляемый воркфлоу `artifacts/wildmarket: web` — Gunicorn; старый `WildMarket (Flask)` остановлен
