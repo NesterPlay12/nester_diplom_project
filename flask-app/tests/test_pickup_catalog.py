@@ -117,6 +117,7 @@ class PickupCatalogTests(unittest.TestCase):
         self.assertNotIn('Демо-пункты', html)
         self.assertNotIn('Получение посылок по этим адресам пока недоступно.', html)
         self.assertNotIn('не действующие пункты выдачи', html)
+        self.assertNotIn('Онлайн-оплата не подключена.', html)
         self.assertIn('id="pvz-city-selected"', html)
 
 
