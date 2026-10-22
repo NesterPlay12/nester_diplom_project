@@ -48,6 +48,23 @@ class DeploymentReadinessTests(unittest.TestCase):
         with self.app.app_context():
             _check_schema_readiness(self.app)
 
+    def test_replit_domain_redirects_to_custom_domain_preserving_path_and_query(self):
+        response = self.app.test_client().get(
+            '/catalog?q=shoes&page=2',
+            base_url='https://wildmarkettest.replit.app',
+        )
+        self.assertEqual(response.status_code, 308)
+        self.assertEqual(
+            response.headers['Location'],
+            'https://wildmarket.su/catalog?q=shoes&page=2',
+        )
+        self.assertEqual(
+            self.app.test_client().get(
+                '/', base_url='https://wildmarket.su',
+            ).status_code,
+            200,
+        )
+
     def test_missing_optional_table_keeps_homepage_and_default_points_working(self):
         self.drop_pickup_table()
         self.check_readiness()

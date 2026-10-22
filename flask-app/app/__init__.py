@@ -1,7 +1,7 @@
 import fcntl
 import os
 import threading
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, redirect, request
 from flask_login import LoginManager
 from flask_wtf.csrf import CSRFError, CSRFProtect
 from werkzeug.middleware.proxy_fix import ProxyFix
@@ -109,6 +109,17 @@ def create_app(config_overrides=None):
     app.register_blueprint(admin_bp, url_prefix='/admin')
     app.register_blueprint(admin_pickup_bp, url_prefix='/admin/pickup-points')
     app.register_blueprint(delivery_bp)
+
+    @app.before_request
+    def redirect_replit_domain():
+        host = request.host.partition(':')[0].lower()
+        if host != 'wildmarkettest.replit.app' or request.method not in ('GET', 'HEAD'):
+            return None
+
+        destination = f'https://wildmarket.su{request.path}'
+        if request.query_string:
+            destination += '?' + request.query_string.decode('latin-1')
+        return redirect(destination, code=308)
 
     if app.config.get('AUTO_INIT_SCHEMA'):
         if app.config.get('ENVIRONMENT') in ('production', 'staging'):
